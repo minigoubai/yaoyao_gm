@@ -917,6 +917,91 @@ curl -sk https://你的域名/ssone/你的TOKEN | head -5
 
 ---
 
+## Rule Explanation / 规则说明
+
+### 规则匹配顺序 / Rule Matching Order
+
+Clash 按照规则**从上到下**逐条匹配，**遇到第一条匹配的规则就执行**，不会继续往下看。所以规则的**顺序非常重要**。
+
+### DIRECT（直连）vs Auto（代理） / Direct vs Proxy
+
+| 规则目标 | 含义 | 适用场景 |
+|---------|------|---------|
+| **DIRECT** | 国内流量直连，不走代理 | 中国大陆网站和服务 |
+| **Auto** | 通过 Shadowsocks 代理访问 | 海外网站和服务 |
+
+### 订阅内置的完整规则体系 / Built-in Rule System
+
+本订阅内置**四层分流体系**，确保国内外流量各走各的：
+
+#### 第一层：精确域名直连（优先级最高）
+```
+- DOMAIN-SUFFIX,baidu.com,DIRECT      # 百度
+- DOMAIN-SUFFIX,taobao.com,DIRECT      # 淘宝
+- DOMAIN-SUFFIX,qq.com,DIRECT          # QQ
+- DOMAIN-SUFFIX,alipay.com,DIRECT      # 支付宝
+- DOMAIN-SUFFIX,bilibili.com,DIRECT    # B站
+- DOMAIN-SUFFIX,weixin.com,DIRECT      # 微信
+- DOMAIN-SUFFIX,jd.com,DIRECT          # 京东
+...（共50条国内主流域名）
+```
+
+#### 第二层：域名关键词直连
+```
+- DOMAIN-KEYWORD,baidu,DIRECT         # 包含"baidu"的域名
+- DOMAIN-KEYWORD,alibaba,DIRECT        # 包含"alibaba"的域名
+- DOMAIN-KEYWORD,tencent,DIRECT        # 包含"tencent"的域名
+...（共5条关键词规则）
+```
+
+#### 第三层：中国 IP 段直连
+```
+- IP-CIDR,10.0.0.0/8,DIRECT            # 10.x.x.x 私有网段
+- IP-CIDR,172.16.0.0/12,DIRECT         # 172.16.x.x 私有网段
+- IP-CIDR,192.168.0.0/16,DIRECT        # 192.168.x.x 局域网段
+- IP-CIDR,127.0.0.0/8,DIRECT           # 本地回环
+```
+
+#### 第四层：ChinaMax 规则集（12万+条规则）
+```
+- RULE-SET,chinamax,DIRECT             # 自动匹配国内已知域名
+```
+
+#### 第五层：GEOIP 地理IP库
+```
+- GEOIP,CN,DIRECT                       # 所有中国IP段走直连
+```
+
+#### 默认兜底规则
+```
+- MATCH,Auto                            # 以上都没命中 → 走代理
+```
+
+### 流量走向示例 / Traffic Flow Examples
+
+| 访问目标 | 匹配规则 | 走向 |
+|---------|---------|------|
+| `baidu.com` | `DOMAIN-SUFFIX,baidu.com,DIRECT` | 直连，不走代理 |
+| `google.com` | 无匹配 → `MATCH,Auto` | 走 Shadowsocks 代理 |
+| `twitter.com` | 无匹配 → `MATCH,Auto` | 走 Shadowsocks 代理 |
+| `bilibili.com` | `DOMAIN-SUFFIX,bilibili.com,DIRECT` | 直连 |
+| `amazon.com` | 无匹配 → `MATCH,Auto` | 走 Shadowsocks 代理 |
+| 中国大陆 IP | `GEOIP,CN,DIRECT` | 直连 |
+
+### 国内网站为什么直连更快？/ Why Direct is Faster for China Sites?
+
+- **延迟低**：直连无中转，本土延迟通常 5-30ms
+- **带宽足**：不走代理出口带宽限制
+- **更稳定**：不受代理服务器带宽波动影响
+
+### 为什么海外网站要走代理？/ Why Proxy for Overseas Sites?
+
+- 国内网络直连海外网站存在国际出口带宽限制和高延迟
+- 通过 Shadowsocks 代理访问，绕开国际出口限制
+- 速度更快、更稳定
+
+---
+
 ## Related Resources / 相关资源
 
 | 资源 | 链接 |
