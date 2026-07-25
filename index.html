@@ -673,14 +673,16 @@
       return parseInt(hex, 16);
     }
     // 解码动态数组（address[]）
+    // EVM storage: 每个slot存一个address (20字节)，hex编码时后20字节=40 hex字符即地址
+    // slot0[offset]=0x20, slot1[count]=N, slot2..N+1=addresses
+    // 正确: 取每个slot的最后40字符（去掉前面的12字节零填充）
     function decodeAddressArray(hex) {
       if (!hex || hex === '0x' || hex.length < 128) return [];
-      const offset = parseInt(hex.slice(2, 66), 16);
       const count = parseInt(hex.slice(66, 130), 16);
       const items = [];
       for (let i = 0; i < count; i++) {
-        const itemOffset = 64 + i * 64;
-        const addr = '0x' + hex.slice(itemOffset + 24, itemOffset + 64);
+        const slotStart = 128 + i * 64;
+        const addr = '0x' + hex.slice(slotStart + 24, slotStart + 64);
         items.push(addr);
       }
       return items;
@@ -920,7 +922,7 @@
     }
     
     // =============================================
-    // ── RPC 直接调用替代 ethers.Contract ────────────────────────────────
+    // ── RPC 直接调用 + ethers.js 解码动态数组 ──────────────────────────────
     // 获取链上数据（无钱包也能用）
     async function fetchChainData() {
       const RPC = GIWA_SEPOLIA_RPC;
@@ -944,6 +946,7 @@
         round:            '0x146ca531',
       };
 
+      // 通用 eth_call（裸 RPC，无 ABI 解码）
       const ethCall = async (sel) => {
         const res = await fetch(RPC, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -955,21 +958,32 @@
       };
 
       try {
+        // 并行获取所有标量值
         const [ticketPrice, maxPlayers, duration, startTime, endTime, phase,
-               totalTickets, uniquePlayers, prizeBalance, players, commitProgress] =
+               totalTickets, uniquePlayers, prizeBalance, commitProgress] =
         await Promise.all([
           ethCall(SEL.ticketPrice), ethCall(SEL.maxPlayers), ethCall(SEL.lotteryDuration),
           ethCall(SEL.startTime), ethCall(SEL.endTime), ethCall(SEL.currentPhase),
           ethCall(SEL.getTotalTickets), ethCall(SEL.getUniquePlayerCount), ethCall(SEL.getPrizePool),
-          ethCall(SEL.getPlayers), ethCall(SEL.getCommitProgress)
+          ethCall(SEL.getCommitProgress)
         ]);
 
-        // round 和 getWinners 单独处理（无中奖者时getWinners会revert）
+        // round 和 getWinners 单独处理（revert 时不影响整体）
         let roundVal = 1;
         try { const r = await ethCall(SEL.round); roundVal = decodeUint(r) || 1; } catch {}
 
         let winnersHex = '0x';
         try { winnersHex = await ethCall(SEL.getWinners); } catch {}
+
+        // players 用 ethers.js JsonRpcProvider 解码（动态数组需要 ABI 解析）
+        let playersArr = [];
+        try {
+          const rp = new ethers.providers.JsonRpcProvider(RPC);
+          const iface = new ethers.utils.Interface(ABI);
+          const playersHex = await ethCall(SEL.getPlayers);
+          playersArr = iface.decodeFunctionResult('getPlayers', playersHex)[0] || [];
+          playersArr = playersArr.map(a => a.toLowerCase());
+        } catch (e) { playersArr = []; }
 
         return {
           ticketPrice: decodeUint(ticketPrice),
@@ -981,7 +995,7 @@
           totalTickets: decodeUint(totalTickets),
           uniquePlayers: decodeUint(uniquePlayers),
           prizeBalance,
-          players,
+          players: playersArr,
           winners: winnersHex,
           commitProgress,
           round: roundVal
@@ -1042,7 +1056,7 @@
         // 统一处理
         const phase = useRpc ? d.phase : parseInt(d.phase);
         const poolEth = useRpc
-          ? parseFloat(ethers.utils.formatEther(d.prizeBalance))
+          ? parseFloat(ethers.utils.formatEther(d.prizeBalance || '0'))
           : parseFloat(ethers.utils.formatEther(d.prizeBalance));
         const priceEth = useRpc
           ? parseFloat(ethers.utils.formatEther(ethers.BigNumber.from(d.ticketPrice)))
@@ -1108,7 +1122,9 @@
         }
 
         // Players
-        const playersData = useRpc ? decodeAddressArray(d.players) : d.players;
+        const playersData = useRpc
+          ? (Array.isArray(d.players) ? d.players : decodeAddressArray(d.players))
+          : d.players;
         document.getElementById('playerListCount').textContent =
           `(${d.uniquePlayers}人/${d.totalTickets}张)`;
         const listEl = document.getElementById('playerList');
