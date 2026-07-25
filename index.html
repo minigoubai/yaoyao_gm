@@ -916,7 +916,15 @@
         showToast(`✅ 成功购买 ${count} 张票！`,'success');
         await refreshData();
       } catch(e) {
-        showToast('购买失败: '+(e.reason||e.message), 'error');
+        console.error('买票失败:', e);
+        let msg = e.reason || e.message || '';
+        if (msg.includes('user rejected') || msg.includes('Rejected') || e.code === 4001)
+          msg = '交易已取消';
+        else if (msg.includes('insufficient funds') || msg.includes('insufficient'))
+          msg = 'ETH 余额不足';
+        else if (!msg)
+          msg = 'Transaction failed (请确认 MetaMask 已弹出并点确认)';
+        showToast('购买失败: ' + msg, 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '🎟️ 购买奖券';
