@@ -925,7 +925,7 @@
     async function fetchChainData() {
       try {
         const [ticketPrice, maxPlayers, duration, startTime, endTime, phase,
-               totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round] =
+               totalTickets, uniquePlayers, prizeBalance, players, commitProgress] =
         await Promise.all([
           ethCall(solidityCall('ticketPrice()')),
           ethCall(solidityCall('maxPlayers()')),
@@ -937,10 +937,20 @@
           ethCall(solidityCall('getUniquePlayerCount()')),
           ethCall(solidityCall('getPrizePool()')),
           ethCall(solidityCall('getPlayers()')),
-          ethCall(solidityCall('getWinners()')),
-          ethCall(solidityCall('getCommitProgress()')),
-          ethCall(solidityCall('round()'))
+          ethCall(solidityCall('getCommitProgress()'))
         ]);
+        // round 单独获取（selector已确认 0x8b5b9ccc 但返回格式需验证）
+        let roundVal = 1;
+        try {
+          const rh = await ethCall(solidityCall('round()'));
+          // round()返回uint256，decodeUint即可
+          roundVal = decodeUint(rh) || 1;
+        } catch {}
+
+        // Winners 单独获取（无中奖者时会revert）
+        let winnersHex = '0x';
+        try { winnersHex = await ethCall(solidityCall('getWinners()')); } catch {}
+
         return {
           ticketPrice: decodeUint(ticketPrice),
           maxPlayers: decodeUint(maxPlayers),
@@ -952,9 +962,9 @@
           uniquePlayers: decodeUint(uniquePlayers),
           prizeBalance: prizeBalance,
           players: players,
-          winners: winners,
+          winners: winnersHex,
           commitProgress: commitProgress,
-          round: decodeUint(round)
+          round: roundVal
         };
       } catch(e) {
         console.error('fetchChainData失败:', e);
