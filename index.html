@@ -1162,9 +1162,15 @@
         // 我的票数（有钱包时查，无钱包跳过）
         if (contract && signer) {
           try {
-            const myTickets = await contract.getTicketCount(await signer.getAddress());
+            const addr = await signer.getAddress();
+            const myTickets = await contract.getTicketCount(addr);
             document.getElementById('myTicketCount').textContent = myTickets.toString()+' 张';
-          } catch {}
+            // 调试：写入 DOM 属性备查
+            document.getElementById('myTicketCount').dataset.addr = addr;
+          } catch(e) {
+            console.error('getTicketCount失败:', e.message || e);
+            document.getElementById('myTicketCount').textContent = '? 张('+(e.reason||e.code||'error').toString().slice(0,20)+')';
+          }
         }
 
       } catch(e) {
