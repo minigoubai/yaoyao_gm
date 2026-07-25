@@ -547,10 +547,51 @@
     </div>
     
     <div style="text-align:center;padding:30px 0;font-size:12px;color:var(--text-dim)">
-      Powered by GIWA Chain · Commit-Reveal 随机机制
+      <button onclick="showRulesModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;font-size:12px">玩法规则</button> · Powered by GIWA Chain · Commit-Reveal 随机机制
     </div>
   </div>
-  
+
+  <!-- 规则说明弹窗 -->
+  <div class="wallet-modal" id="rulesModal">
+    <div class="wallet-modal-content" style="max-height:80vh;overflow-y:auto;text-align:left;padding:24px">
+      <h3 style="text-align:center">🎰 抽奖规则</h3>
+      <div style="font-size:13px;line-height:1.8;color:var(--text)">
+        <p style="margin-top:0"><strong>开奖条件（满足任一即开奖）</strong></p>
+        <ul style="margin:8px 0;padding-left:20px">
+          <li>参与人数达到上限（50人）</li>
+          <li>定时到期（每轮1小时）</li>
+          <li>管理员手动开奖</li>
+        </ul>
+        <p><strong>参与流程</strong></p>
+        <ol style="margin:8px 0;padding-left:20px">
+          <li><strong>购买奖券</strong> — 输入数量，支付 ETH（票价 × 数量）</li>
+          <li><strong>等待开奖</strong> — 50人满或1小时倒计时结束</li>
+          <li><strong>自动开奖</strong> — 合约自动开奖，无需人工干预</li>
+        </ol>
+        <p><strong>奖项分配</strong></p>
+        <ul style="margin:8px 0;padding-left:20px">
+          <li>🥇 一等奖：奖池的 <strong>50%</strong></li>
+          <li>🥈 二等奖：奖池的 <strong>25%</strong></li>
+          <li>🥉 三等奖：奖池的 <strong>15%</strong></li>
+          <li>⚙️ 管理费：奖池的 <strong>10%</strong></li>
+        </ul>
+        <p><strong>公平机制</strong></p>
+        <ul style="margin:8px 0;padding-left:20px">
+          <li>真随机数（区块 prevrandao + 多方随机数组合）</li>
+          <li>合约代码开源，链上公开可验证</li>
+          <li>开奖结果自动执行，无法人为干预</li>
+        </ul>
+        <p><strong>风险提示</strong></p>
+        <ul style="margin:8px 0;padding-left:20px">
+          <li>测试网代币无真实价值</li>
+          <li>智能合约存在代码风险，请自行评估</li>
+          <li>中奖概率 = 你的票数 ÷ 总票数（每人可购多张）</li>
+        </ul>
+      </div>
+      <button class="wallet-modal-close" onclick="hideRulesModal()" style="margin-top:16px">知道了</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
@@ -565,6 +606,7 @@
     let provider = null;
     let signer = null;
     let contract = null;
+    let readOnlyContract = null; // 只读 contract，无钱包也能读取链上数据
     let isManager = false;
     let currentPhase = 0;
     let myRandomness = null;
@@ -592,6 +634,19 @@
     function hideWalletModal() {
       document.getElementById('walletModal').classList.remove('show');
     }
+    function showRulesModal() {
+      document.getElementById('rulesModal').classList.add('show');
+    }
+    function hideRulesModal() {
+      document.getElementById('rulesModal').classList.remove('show');
+    }
+    // 点击弹窗背景关闭
+    document.addEventListener('click', function(e) {
+      if (e.target.classList.contains('wallet-modal')) {
+        hideWalletModal();
+        hideRulesModal();
+      }
+    });
 
     async function connectWith(walletType) {
       hideWalletModal();
@@ -713,6 +768,12 @@
         contract = c;
         document.getElementById('contractAddr').textContent = shortAddr(CONTRACT_ADDRESS);
         
+        // 只读 contract，用于无钱包时读取链上数据
+        const readOnlyProvider = new ethers.providers.JsonRpcProvider(GIWA_SEPOLIA_RPC);
+        readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, readOnlyProvider);
+        // 立即读取一次（无钱包用户也能看到数据）
+        await refreshData();
+        
         const manager = await contract.MANAGER();
         const myAddr = await signer.getAddress();
         isManager = myAddr.toLowerCase() === manager.toLowerCase();
@@ -748,33 +809,42 @@
     // 数据刷新
     // =============================================
     async function refreshData() {
-      if (!contract) return;
+      // 有钱包时用 signer contract，无钱包时用只读 contract
+      const c = contract || readOnlyContract;
+      if (!c) return;
       try {
         const [
           ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase, totalTickets, uniquePlayers, prizeBalance,
           players, winners, commitCount, round
         ] = await Promise.all([
-          contract.ticketPrice(),
-          contract.maxPlayers(),
-          contract.lotteryDuration(),
-          contract.managerFeeBp().catch(() => 1000),
-          contract.startTime(),
-          contract.endTime(),
-          contract.currentPhase(),
-          contract.getTotalTickets(),
-          contract.getUniquePlayerCount(),
-          contract.getPrizePool(),
-          contract.getPlayers(),
-          contract.getWinners(),
-          contract.getCommitProgress(),
-          contract.round()
+          c.ticketPrice(),
+          c.maxPlayers(),
+          c.lotteryDuration(),
+          c.managerFeeBp().catch(() => 1000),
+          c.startTime(),
+          c.endTime(),
+          c.currentPhase(),
+          c.getTotalTickets(),
+          c.getUniquePlayerCount(),
+          c.getPrizePool(),
+          c.getPlayers(),
+          c.getWinners(),
+          c.getCommitProgress(),
+          c.round()
         ]);
 
         currentPhase = parseInt(phase);
 
         const poolEth = parseFloat(ethers.utils.formatEther(prizeBalance));
         const priceEth = parseFloat(ethers.utils.formatEther(ticketPrice));
-        const myTickets = await contract.getTicketCount(await signer.getAddress());
+        // 我的票数：有钱包时从 signer 查，无钱包时跳过
+        let myTickets = null;
+        if (contract && signer) {
+          try { myTickets = await contract.getTicketCount(await signer.getAddress()); } catch {}
+        }
+        if (myTickets !== null) {
+          document.getElementById('myTicketCount').textContent = myTickets.toString()+' 张';
+        }
 
         document.getElementById('prizePool').textContent = poolEth.toFixed(4);
         document.getElementById('playerCount').textContent = uniquePlayers.toString();
@@ -848,7 +918,7 @@
         // Commit progress
         if (currentPhase === 1 || currentPhase === 2) {
           document.getElementById('commitStatusCard').style.display = 'block';
-          const [comm, total] = await contract.getCommitProgress();
+          const [comm, total] = await c.getCommitProgress();
           document.getElementById('commitCount').textContent = `${comm} / ${total}`;
           document.getElementById('commitRemaining').textContent = total - comm;
           const pct = total > 0 ? (comm / total * 100) : 0;
