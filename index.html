@@ -1024,12 +1024,12 @@
               ticketPrice, maxPlayers, duration, startTime, endTime, phase,
               totalTickets, uniquePlayers, prizeBalance, players, winners, round
             ] = await Promise.all([
-              c.ticketPrice(), c.maxPlayers(), c.lotteryDuration(),
-              c.startTime(), c.endTime(), c.currentPhase(),
-              c.getTotalTickets(), c.getUniquePlayerCount(), c.getPrizePool(),
-              c.getPlayers(), c.getWinners(), c.round()
+              contract.ticketPrice(), contract.maxPlayers(), contract.lotteryDuration(),
+              contract.startTime(), contract.endTime(), contract.currentPhase(),
+              contract.getTotalTickets(), contract.getUniquePlayerCount(), contract.getPrizePool(),
+              contract.getPlayers(), contract.getWinners(), contract.round()
             ]);
-            const commitProgress = await c.getCommitProgress();
+            const commitProgress = await contract.getCommitProgress();
             return {
               ticketPrice, maxPlayers, duration, startTime, endTime, phase,
               totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round
