@@ -967,9 +967,8 @@
     // 数据刷新
     // =============================================
     async function refreshData() {
-      // 有钱包时用 signer contract，无钱包时用 RPC 直接读取
-      const c = contract || readOnlyContract;
-      const useRpc = !contract; // 无钱包时强制用 RPC
+      // 无钱包时用 fetch RPC，有钱包时用 ethers.Contract
+      const useRpc = !contract || !signer;
 
       try {
         let data;
