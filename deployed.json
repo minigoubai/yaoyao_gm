@@ -1,0 +1,8 @@
+{
+  "network": "giwa-sepolia",
+  "chainId": 91342,
+  "contractAddress": "0x67188cd91165aBb197c5a02574c20a40F95Cd93B",
+  "manager": "0xC43943A9FFe891e175cb21190e642831e6403259",
+  "rpc": "https://sepolia-rpc.giwa.io",
+  "timestamp": "2026-07-25T12:04:48.766Z"
+}
