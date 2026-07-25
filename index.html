@@ -667,6 +667,12 @@
     }
     
     async function switchToGiwaNetwork() {
+      // 先检查当前网络，避免重复切换触发错误
+      try {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (chainId === GIWA_SEPOLIA_CHAIN_ID) return; // 已是 GIWA Sepolia，无需切换
+      } catch(e) {}
+
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
@@ -674,16 +680,23 @@
         });
       } catch(e) {
         if (e.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: GIWA_SEPOLIA_CHAIN_ID,
-              chainName: 'GIWA Sepolia',
-              nativeCurrency: { name:'ETH', symbol:'ETH', decimals:18 },
-              rpcUrls: [GIWA_SEPOLIA_RPC],
-              blockExplorerUrls: ['https://sepolia-explorer.giwa.io'],
-            }]
-          });
+          // 链未添加，先添加
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: GIWA_SEPOLIA_CHAIN_ID,
+                chainName: 'GIWA Sepolia',
+                nativeCurrency: { name:'ETH', symbol:'ETH', decimals:18 },
+                rpcUrls: [GIWA_SEPOLIA_RPC],
+                blockExplorerUrls: ['https://sepolia-explorer.giwa.io'],
+              }]
+            });
+          } catch(addErr) {
+            if (addErr.code !== 4001) console.error('add network error:', addErr);
+          }
+        } else if (e.code !== 4001) {
+          console.error('switch network error:', e);
         }
       }
     }
