@@ -49,6 +49,13 @@
       background: rgba(108, 92, 231, 0.15); border: 1px solid rgba(108, 92, 231, 0.3);
       border-radius: 20px; font-size: 12px; color: var(--primary);
     }
+    .rules-btn {
+      display: inline-block; margin-top: 12px; margin-left: 10px; padding: 4px 16px;
+      background: rgba(253, 121, 168, 0.15); border: 1px solid rgba(253, 121, 168, 0.4);
+      border-radius: 20px; font-size: 12px; color: var(--accent); cursor: pointer;
+      font-family: inherit;
+    }
+    .rules-btn:hover { background: rgba(253, 121, 168, 0.25); }
     
     .card {
       background: var(--card); border: 1px solid var(--border);
@@ -271,6 +278,7 @@
       <h1>GIWA Lottery V2</h1>
       <p>多等奖 · 公平随机 · 自动开奖</p>
       <div class="chain-badge">GIWA Sepolia · Chain ID: 91342</div>
+      <button class="rules-btn" onclick="showRulesModal()">📋 玩法规则</button>
     </div>
     
     <!-- Network Warning -->
