@@ -924,13 +924,12 @@
     // 获取链上数据（无钱包也能用）
     async function fetchChainData() {
       try {
-        const [ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase,
+        const [ticketPrice, maxPlayers, duration, startTime, endTime, phase,
                totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round] =
         await Promise.all([
           ethCall(solidityCall('ticketPrice()')),
           ethCall(solidityCall('maxPlayers()')),
           ethCall(solidityCall('lotteryDuration()')),
-          ethCall(solidityCall('managerFeeBp()')).catch(() => '0x00000000000000000000000000000000000000000000000000000000000003e8'),
           ethCall(solidityCall('startTime()')),
           ethCall(solidityCall('endTime()')),
           ethCall(solidityCall('currentPhase()')),
@@ -946,7 +945,6 @@
           ticketPrice: decodeUint(ticketPrice),
           maxPlayers: decodeUint(maxPlayers),
           duration: decodeUint(duration),
-          feeBp: decodeUint(feeBp),
           startTime: decodeUint(startTime),
           endTime: decodeUint(endTime),
           phase: decodeUint(phase),
@@ -979,17 +977,17 @@
           // 有钱包路径：用 ethers.Contract（有钱包时正常）
           data = await (async () => {
             const [
-              ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase,
+              ticketPrice, maxPlayers, duration, startTime, endTime, phase,
               totalTickets, uniquePlayers, prizeBalance, players, winners, round
             ] = await Promise.all([
               c.ticketPrice(), c.maxPlayers(), c.lotteryDuration(),
-              c.managerFeeBp().catch(() => 1000), c.startTime(), c.endTime(), c.currentPhase(),
+              c.startTime(), c.endTime(), c.currentPhase(),
               c.getTotalTickets(), c.getUniquePlayerCount(), c.getPrizePool(),
               c.getPlayers(), c.getWinners(), c.round()
             ]);
             const commitProgress = await c.getCommitProgress();
             return {
-              ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase,
+              ticketPrice, maxPlayers, duration, startTime, endTime, phase,
               totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round
             };
           })();
@@ -999,7 +997,6 @@
           ticketPrice: data.ticketPrice,
           maxPlayers: data.maxPlayers,
           duration: data.duration,
-          feeBp: data.feeBp,
           startTime: data.startTime,
           endTime: data.endTime,
           phase: data.phase,
@@ -1043,7 +1040,7 @@
         }
 
         // 奖池预览
-        const distributable = poolEth * (1 - d.feeBp/10000);
+        const distributable = poolEth * (1 - 1000/10000); // 10% 管理员费
         document.getElementById('p1Eth').textContent = (distributable*0.5).toFixed(4)+' ETH';
         document.getElementById('p2Eth').textContent = (distributable*0.25).toFixed(4)+' ETH';
         document.getElementById('p3Eth').textContent = (distributable*0.15).toFixed(4)+' ETH';
