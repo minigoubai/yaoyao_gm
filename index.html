@@ -1144,6 +1144,9 @@
         if (window.ethereum) {
           const accs = await window.ethereum.request({ method: 'eth_accounts' });
           if (accs.length > 0) await connectWallet();
+          else await initContract(); // 无钱包时也初始化只读 contract
+        } else {
+          await initContract(); // 无钱包扩展时也初始化只读 contract
         }
       }
     });
