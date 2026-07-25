@@ -601,7 +601,122 @@
     // =============================================
     const GIWA_SEPOLIA_CHAIN_ID = '0x164CE'; // 91342
     const GIWA_SEPOLIA_RPC = 'https://sepolia-rpc.giwa.io';
-    
+
+    // ── 直接 RPC 调用（绕过 ethers.Contract 的兼容性问题）───────────────
+    async function rpcCall(method, params = []) {
+      const res = await fetch(GIWA_SEPOLIA_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error.message);
+      return json.result;
+    }
+    async function ethCall(hexData) {
+      return await rpcCall('eth_call', [{ to: CONTRACT_ADDRESS, data: hexData }, 'latest']);
+    }
+    // keccak256 helper
+    async function keccak256(str) {
+      const msgBytes = new TextEncoder().encode(str);
+      const hashHex = await crypto.subtle.digest('SHA-256', msgBytes).then(b => {
+        return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
+      });
+      // SHA-256不是keccak，需要用WebCrypto的SHA-256再转keccak
+      // 改用已知selector，不动态计算
+      return hashHex;
+    }
+    function encodeSignature(sig) {
+      // 用ethers.js的默认行为：取keccak前4字节
+      // 但这里直接硬编码已知selector
+      return null; // 将在下面直接使用硬编码selector
+    }
+    function funcSelector(sig) {
+      // 硬编码已知selector
+      const map = {
+        'ticketPrice()': '0x1209b1f6',
+        'maxPlayers()': '0x4c2412a2',
+        'lotteryDuration()': '0x2d97902f',
+        'startTime()': '0x78e97925',
+        'endTime()': '0x3197cbb6',
+        'currentPhase()': '0x055ad42e',
+        'getTotalTickets()': '0x06e8337f',
+        'getUniquePlayerCount()': '0x91aae8f8',
+        'getPrizePool()': '0x884bf67c',
+        'getPlayers()': '0x8b5b9ccc',
+        'getWinners()': '0xdf15c37e',
+        'getCommitProgress()': '0x5dbcb739',
+        'getTicketCount(address)': '0xcff82e22',
+        'MANAGER()': '0x1b2df850',
+        'managerFeeBp()': '0xbfc6cab3'
+      };
+      return map[sig] || null;
+    }
+    function solidityCall(funcSig, ...params) {
+      const sel = funcSelector(funcSig);
+      if (!sel) return null;
+      let data = sel;
+      for (const p of params) {
+        if (typeof p === 'string' && p.startsWith('0x')) {
+          data += p.slice(2).padStart(64, '0');
+        } else if (typeof p === 'number') {
+          data += p.toString(16).padStart(64, '0');
+        } else {
+          data += BigInt(p).toString(16).padStart(64, '0');
+        }
+      }
+      return data;
+    }
+    // 解码纯整数返回值
+    function decodeUint(hex) {
+      if (!hex || hex === '0x') return 0;
+      return parseInt(hex, 16);
+    }
+    // 解码动态数组（address[]）
+    function decodeAddressArray(hex) {
+      if (!hex || hex === '0x' || hex.length < 128) return [];
+      const offset = parseInt(hex.slice(2, 66), 16);
+      const count = parseInt(hex.slice(66, 130), 16);
+      const items = [];
+      for (let i = 0; i < count; i++) {
+        const itemOffset = 64 + i * 64;
+        const addr = '0x' + hex.slice(itemOffset + 24, itemOffset + 64);
+        items.push(addr);
+      }
+      return items;
+    }
+    // 解码 struct Winners { address[3] winners; uint256[3] amounts }
+    function decodeWinners(hex) {
+      if (!hex || hex === '0x') return [['0x0','0x0','0x0'], [0n,0n,0n]];
+      if (hex.length < 320) return [['0x0','0x0','0x0'], [0n,0n,0n]];
+      try {
+        const winners = [];
+        for (let i = 0; i < 3; i++) {
+          winners.push('0x' + hex.slice(128 + i * 64 + 24, 128 + i * 64 + 64));
+        }
+        const amounts = [];
+        for (let i = 0; i < 3; i++) {
+          amounts.push(BigInt('0x' + hex.slice(320 + i * 64, 320 + i * 64 + 64)));
+        }
+        return [winners, amounts];
+      } catch(e) { return [['0x0','0x0','0x0'], [0n,0n,0n]]; }
+    }
+    // 解码 (uint256 comm, uint256 total)
+    function decodeCommitProgress(hex) {
+      if (!hex || hex === '0x') return [0, 0];
+      return [decodeUint(hex.slice(0, 66)), decodeUint(hex.slice(128, 194))];
+    }
+    // 解码 address[]
+    function decodeAddressArrayDynamic(hex) {
+      if (!hex || hex === '0x' || hex.length < 128) return [];
+      const count = parseInt(hex.slice(64, 128), 16);
+      const items = [];
+      for (let i = 0; i < count; i++) {
+        const offset = 128 + i * 64;
+        items.push('0x' + hex.slice(offset + 12, offset + 64));
+      }
+      return items;
+    }
     let CONTRACT_ADDRESS = '0xf5418b73CeA7E43F8485ECa0f795E62F8aCAb69c';
     let provider = null;
     let signer = null;
@@ -805,105 +920,177 @@
     }
     
     // =============================================
+    // ── RPC 直接调用替代 ethers.Contract ────────────────────────────────
+    // 获取链上数据（无钱包也能用）
+    async function fetchChainData() {
+      try {
+        const [ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase,
+               totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round] =
+        await Promise.all([
+          ethCall(solidityCall('ticketPrice()')),
+          ethCall(solidityCall('maxPlayers()')),
+          ethCall(solidityCall('lotteryDuration()')),
+          ethCall(solidityCall('managerFeeBp()')).catch(() => '0x00000000000000000000000000000000000000000000000000000000000003e8'),
+          ethCall(solidityCall('startTime()')),
+          ethCall(solidityCall('endTime()')),
+          ethCall(solidityCall('currentPhase()')),
+          ethCall(solidityCall('getTotalTickets()')),
+          ethCall(solidityCall('getUniquePlayerCount()')),
+          ethCall(solidityCall('getPrizePool()')),
+          ethCall(solidityCall('getPlayers()')),
+          ethCall(solidityCall('getWinners()')),
+          ethCall(solidityCall('getCommitProgress()')),
+          ethCall(solidityCall('round()'))
+        ]);
+        return {
+          ticketPrice: decodeUint(ticketPrice),
+          maxPlayers: decodeUint(maxPlayers),
+          duration: decodeUint(duration),
+          feeBp: decodeUint(feeBp),
+          startTime: decodeUint(startTime),
+          endTime: decodeUint(endTime),
+          phase: decodeUint(phase),
+          totalTickets: decodeUint(totalTickets),
+          uniquePlayers: decodeUint(uniquePlayers),
+          prizeBalance: prizeBalance,
+          players: players,
+          winners: winners,
+          commitProgress: commitProgress,
+          round: decodeUint(round)
+        };
+      } catch(e) {
+        console.error('fetchChainData失败:', e);
+        return null;
+      }
+    }
+
     // 数据刷新
     // =============================================
     async function refreshData() {
-      // 有钱包时用 signer contract，无钱包时用只读 contract
+      // 有钱包时用 signer contract，无钱包时用 RPC 直接读取
       const c = contract || readOnlyContract;
-      if (!c) return;
+      const useRpc = !contract; // 无钱包时强制用 RPC
+
       try {
-        const [
-          ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase, totalTickets, uniquePlayers, prizeBalance,
-          players, winners, commitCount, round
-        ] = await Promise.all([
-          c.ticketPrice(),
-          c.maxPlayers(),
-          c.lotteryDuration(),
-          c.managerFeeBp().catch(() => 1000),
-          c.startTime(),
-          c.endTime(),
-          c.currentPhase(),
-          c.getTotalTickets(),
-          c.getUniquePlayerCount(),
-          c.getPrizePool(),
-          c.getPlayers(),
-          c.getWinners(),
-          c.getCommitProgress(),
-          c.round()
-        ]);
-
-        currentPhase = parseInt(phase);
-
-        const poolEth = parseFloat(ethers.utils.formatEther(prizeBalance));
-        const priceEth = parseFloat(ethers.utils.formatEther(ticketPrice));
-        // 我的票数：有钱包时从 signer 查，无钱包时跳过
-        let myTickets = null;
-        if (contract && signer) {
-          try { myTickets = await contract.getTicketCount(await signer.getAddress()); } catch {}
+        let data;
+        if (useRpc) {
+          data = await fetchChainData();
+          if (!data) return;
+        } else {
+          // 有钱包路径：用 ethers.Contract（有钱包时正常）
+          data = await (async () => {
+            const [
+              ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase,
+              totalTickets, uniquePlayers, prizeBalance, players, winners, round
+            ] = await Promise.all([
+              c.ticketPrice(), c.maxPlayers(), c.lotteryDuration(),
+              c.managerFeeBp().catch(() => 1000), c.startTime(), c.endTime(), c.currentPhase(),
+              c.getTotalTickets(), c.getUniquePlayerCount(), c.getPrizePool(),
+              c.getPlayers(), c.getWinners(), c.round()
+            ]);
+            const commitProgress = await c.getCommitProgress();
+            return {
+              ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase,
+              totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round
+            };
+          })();
         }
-        if (myTickets !== null) {
-          document.getElementById('myTicketCount').textContent = myTickets.toString()+' 张';
-        }
+
+        const d = useRpc ? data : {
+          ticketPrice: data.ticketPrice,
+          maxPlayers: data.maxPlayers,
+          duration: data.duration,
+          feeBp: data.feeBp,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          phase: data.phase,
+          totalTickets: data.totalTickets,
+          uniquePlayers: data.uniquePlayers,
+          prizeBalance: data.prizeBalance,
+          players: data.players,
+          winners: data.winners,
+          commitProgress: data.commitProgress,
+          round: data.round
+        };
+
+        // 统一处理
+        const phase = useRpc ? d.phase : parseInt(d.phase);
+        const poolEth = useRpc
+          ? parseFloat(ethers.utils.formatEther(d.prizeBalance))
+          : parseFloat(ethers.utils.formatEther(d.prizeBalance));
+        const priceEth = useRpc
+          ? parseFloat(ethers.utils.formatEther(ethers.BigNumber.from(d.ticketPrice)))
+          : parseFloat(ethers.utils.formatEther(d.ticketPrice));
+
+        currentPhase = phase;
 
         document.getElementById('prizePool').textContent = poolEth.toFixed(4);
-        document.getElementById('playerCount').textContent = uniquePlayers.toString();
-        document.getElementById('roundNum').textContent = round.toString();
+        document.getElementById('playerCount').textContent = d.uniquePlayers.toString();
+        document.getElementById('roundNum').textContent = d.round.toString();
         document.getElementById('ticketPriceDisplay').textContent = priceEth.toFixed(6)+' ETH';
-        document.getElementById('myTicketCount').textContent = myTickets.toString()+' 张';
-        document.getElementById('totalTicketsDisplay').textContent = totalTickets.toString()+' 张';
+        document.getElementById('totalTicketsDisplay').textContent = d.totalTickets.toString()+' 张';
         document.getElementById('costDisplay').textContent = priceEth.toFixed(6);
-        document.getElementById('totalCostDisplay').textContent = (priceEth * (parseInt(document.getElementById('ticketCountInput').value) || 1)).toFixed(6);
+        document.getElementById('totalCostDisplay').textContent =
+          (priceEth * (parseInt(document.getElementById('ticketCountInput').value) || 1)).toFixed(6);
 
         // 触发条件
-        if (maxPlayers > 0) {
-          document.getElementById('thresholdDisplay').textContent = `${uniquePlayers}/${maxPlayers}人`;
-        } else if (duration > 0) {
+        if (d.maxPlayers > 0) {
+          document.getElementById('thresholdDisplay').textContent =
+            `${d.uniquePlayers}/${d.maxPlayers}人`;
+        } else if (d.duration > 0) {
           document.getElementById('thresholdDisplay').textContent = '定时';
         } else {
           document.getElementById('thresholdDisplay').textContent = '手动';
         }
 
         // 奖池预览
-        const distributable = poolEth * (1 - feeBp/10000);
+        const distributable = poolEth * (1 - d.feeBp/10000);
         document.getElementById('p1Eth').textContent = (distributable*0.5).toFixed(4)+' ETH';
         document.getElementById('p2Eth').textContent = (distributable*0.25).toFixed(4)+' ETH';
         document.getElementById('p3Eth').textContent = (distributable*0.15).toFixed(4)+' ETH';
 
-        updatePhaseBanner(currentPhase);
-        updatePhaseUI(currentPhase);
+        updatePhaseBanner(phase);
+        updatePhaseUI(phase);
 
         // Timer
-        if (currentPhase === 0 && duration > 0 && endTime > 0) {
+        if (phase === 0 && d.duration > 0 && d.endTime > 0) {
           document.getElementById('timerSection').style.display = 'block';
-          startTimer(endTime);
+          startTimer(d.endTime);
         } else {
           document.getElementById('timerSection').style.display = 'none';
           if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         }
 
         // Winners
-        const [winnersArr, amountsArr] = winners;
-        if (winnersArr[0] && winnersArr[0] !== '0x0000000000000000000000000000000000000000') {
+        const winnersData = useRpc ? decodeWinners(d.winners) : d.winners;
+        const [winnersArr, amountsArr] = winnersData;
+        const w0 = useRpc ? winnersArr[0] : winnersArr[0];
+        if (w0 && w0 !== '0x0000000000000000000000000000000000000000') {
           document.getElementById('winnersCard').style.display = 'block';
-          document.getElementById('w1Addr').textContent = winnersArr[0];
-          document.getElementById('w1Amt').textContent = parseFloat(ethers.utils.formatEther(amountsArr[0])).toFixed(4)+' ETH';
+          const amt0 = useRpc ? amountsArr[0] : amountsArr[0];
+          const amt1 = useRpc ? (amountsArr[1] || 0n) : amountsArr[1];
+          const amt2 = useRpc ? (amountsArr[2] || 0n) : amountsArr[2];
+          const fmt = (a) => parseFloat(ethers.utils.formatEther(useRpc ? a : a)).toFixed(4);
+          document.getElementById('w1Addr').textContent = w0;
+          document.getElementById('w1Amt').textContent = fmt(amt0)+' ETH';
           document.getElementById('w2Addr').textContent = winnersArr[1] || '-';
-          document.getElementById('w2Amt').textContent = winnersArr[1] ? parseFloat(ethers.utils.formatEther(amountsArr[1])).toFixed(4)+' ETH' : '-';
+          document.getElementById('w2Amt').textContent = winnersArr[1] ? fmt(amt1)+' ETH' : '-';
           document.getElementById('w3Addr').textContent = winnersArr[2] || '-';
-          document.getElementById('w3Amt').textContent = winnersArr[2] ? parseFloat(ethers.utils.formatEther(amountsArr[2])).toFixed(4)+' ETH' : '-';
+          document.getElementById('w3Amt').textContent = winnersArr[2] ? fmt(amt2)+' ETH' : '-';
         } else {
           document.getElementById('winnersCard').style.display = 'none';
         }
 
         // Players
-        document.getElementById('playerListCount').textContent = `(${uniquePlayers}人/${totalTickets}张)`;
+        const playersData = useRpc ? decodeAddressArray(d.players) : d.players;
+        document.getElementById('playerListCount').textContent =
+          `(${d.uniquePlayers}人/${d.totalTickets}张)`;
         const listEl = document.getElementById('playerList');
-        if (players.length === 0) {
+        if (playersData.length === 0) {
           listEl.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px">暂无参与者</div>';
         } else {
-          // 显示前20条（地址 + 票数汇总）
           const addrMap = {};
-          for (const p of players) addrMap[p] = (addrMap[p] || 0) + 1;
+          for (const p of playersData) addrMap[p] = (addrMap[p] || 0) + 1;
           const sorted = Object.entries(addrMap).sort((a,b) => b[1]-a[1]);
           listEl.innerHTML = sorted.slice(0,20).map(([p,cnt],i) => `
             <div class="player-item">
@@ -915,9 +1102,10 @@
         }
 
         // Commit progress
-        if (currentPhase === 1 || currentPhase === 2) {
+        if (phase === 1 || phase === 2) {
           document.getElementById('commitStatusCard').style.display = 'block';
-          const [comm, total] = await c.getCommitProgress();
+          const cpData = useRpc ? decodeCommitProgress(d.commitProgress) : d.commitProgress;
+          const [comm, total] = Array.isArray(cpData) ? cpData : [0, 0];
           document.getElementById('commitCount').textContent = `${comm} / ${total}`;
           document.getElementById('commitRemaining').textContent = total - comm;
           const pct = total > 0 ? (comm / total * 100) : 0;
@@ -929,7 +1117,17 @@
           document.getElementById('commitStatusCard').style.display = 'none';
         }
 
-      } catch(e) { console.error('刷新失败:', e); }
+        // 我的票数（有钱包时查，无钱包跳过）
+        if (contract && signer) {
+          try {
+            const myTickets = await contract.getTicketCount(await signer.getAddress());
+            document.getElementById('myTicketCount').textContent = myTickets.toString()+' 张';
+          } catch {}
+        }
+
+      } catch(e) {
+        console.error('刷新失败:', e.message || e);
+      }
     }
     
     function phaseName(p) {
