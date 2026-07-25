@@ -727,8 +727,8 @@
         
         refreshInterval = setInterval(refreshData, 5000);
         
-        contract.on('PlayerEntered', (p, a, r) => {
-          showToast(`🎟️ ${shortAddr(p)} 加入了第 ${r} 轮！`, 'success');
+        contract.on('TicketsPurchased', (p, c, a, r) => {
+          showToast(`🎟️ ${shortAddr(p)} 购买了 ${c} 张票！`, 'success');
           refreshData();
         });
         contract.on('WinnersPicked', (w1,p1,w2,p2,w3,p3) => {
