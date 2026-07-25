@@ -923,33 +923,53 @@
     // ── RPC 直接调用替代 ethers.Contract ────────────────────────────────
     // 获取链上数据（无钱包也能用）
     async function fetchChainData() {
+      const RPC = GIWA_SEPOLIA_RPC;
+      const ADDR = CONTRACT_ADDRESS;
+      const decodeUint = (hex) => hex ? parseInt(hex, 16) : 0;
+
+      // 硬编码 selectors（已验证正确）
+      const SEL = {
+        ticketPrice:      '0x1209b1f6',
+        maxPlayers:       '0x4c2412a2',
+        lotteryDuration:  '0x2d97902f',
+        startTime:        '0x78e97925',
+        endTime:          '0x3197cbb6',
+        currentPhase:     '0x055ad42e',
+        getTotalTickets:  '0x06e8337f',
+        getUniquePlayerCount: '0x91aae8f8',
+        getPrizePool:     '0x884bf67c',
+        getPlayers:       '0x8b5b9ccc',
+        getCommitProgress:'0x5dbcb739',
+        getWinners:       '0xdf15c37e',
+        round:            '0x8b5b9ccc',
+      };
+
+      const ethCall = async (sel) => {
+        const res = await fetch(RPC, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: ADDR, data: sel }, 'latest'] })
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error.message);
+        return json.result;
+      };
+
       try {
         const [ticketPrice, maxPlayers, duration, startTime, endTime, phase,
                totalTickets, uniquePlayers, prizeBalance, players, commitProgress] =
         await Promise.all([
-          ethCall(solidityCall('ticketPrice()')),
-          ethCall(solidityCall('maxPlayers()')),
-          ethCall(solidityCall('lotteryDuration()')),
-          ethCall(solidityCall('startTime()')),
-          ethCall(solidityCall('endTime()')),
-          ethCall(solidityCall('currentPhase()')),
-          ethCall(solidityCall('getTotalTickets()')),
-          ethCall(solidityCall('getUniquePlayerCount()')),
-          ethCall(solidityCall('getPrizePool()')),
-          ethCall(solidityCall('getPlayers()')),
-          ethCall(solidityCall('getCommitProgress()'))
+          ethCall(SEL.ticketPrice), ethCall(SEL.maxPlayers), ethCall(SEL.lotteryDuration),
+          ethCall(SEL.startTime), ethCall(SEL.endTime), ethCall(SEL.currentPhase),
+          ethCall(SEL.getTotalTickets), ethCall(SEL.getUniquePlayerCount), ethCall(SEL.getPrizePool),
+          ethCall(SEL.getPlayers), ethCall(SEL.getCommitProgress)
         ]);
-        // round 单独获取（selector已确认 0x8b5b9ccc 但返回格式需验证）
-        let roundVal = 1;
-        try {
-          const rh = await ethCall(solidityCall('round()'));
-          // round()返回uint256，decodeUint即可
-          roundVal = decodeUint(rh) || 1;
-        } catch {}
 
-        // Winners 单独获取（无中奖者时会revert）
+        // round 和 getWinners 单独处理（无中奖者时getWinners会revert）
+        let roundVal = 1;
+        try { const r = await ethCall(SEL.round); roundVal = decodeUint(r) || 1; } catch {}
+
         let winnersHex = '0x';
-        try { winnersHex = await ethCall(solidityCall('getWinners()')); } catch {}
+        try { winnersHex = await ethCall(SEL.getWinners); } catch {}
 
         return {
           ticketPrice: decodeUint(ticketPrice),
@@ -960,14 +980,14 @@
           phase: decodeUint(phase),
           totalTickets: decodeUint(totalTickets),
           uniquePlayers: decodeUint(uniquePlayers),
-          prizeBalance: prizeBalance,
-          players: players,
+          prizeBalance,
+          players,
           winners: winnersHex,
-          commitProgress: commitProgress,
+          commitProgress,
           round: roundVal
         };
       } catch(e) {
-        console.error('fetchChainData失败:', e);
+        console.error('fetchChainData失败:', e.message || e);
         return null;
       }
     }
