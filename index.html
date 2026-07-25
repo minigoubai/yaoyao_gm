@@ -924,8 +924,13 @@
         showToast(`✅ 成功购买 ${count} 张票！`,'success');
         await refreshData();
       } catch(e) {
-        console.error('买票失败:', e);
+        console.error('买票失败完整错误:', JSON.stringify(e, null, 2));
         let msg = e.reason || e.message || '';
+        if (!msg) {
+          // 尝试从 error.data 或 error.data.message 提取
+          msg = e.data?.message || e.error?.message || e.error?.reason || '';
+        }
+        if (!msg && e.code) msg = `code=${e.code}`;
         if (msg.includes('user rejected') || msg.includes('Rejected') || e.code === 4001)
           msg = '交易已取消';
         else if (msg.includes('insufficient funds') || msg.includes('insufficient'))
