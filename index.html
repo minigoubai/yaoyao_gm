@@ -764,42 +764,41 @@
         showToast('合约地址未设置', 'error'); return;
       }
       try {
-        const c = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-        contract = c;
-        document.getElementById('contractAddr').textContent = shortAddr(CONTRACT_ADDRESS);
-        
-        // 只读 contract，用于无钱包时读取链上数据
+        // 只读 contract（始终创建，无钱包也能读链上数据）
         const readOnlyProvider = new ethers.providers.JsonRpcProvider(GIWA_SEPOLIA_RPC);
         readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, readOnlyProvider);
+        document.getElementById('contractAddr').textContent = shortAddr(CONTRACT_ADDRESS);
         // 立即读取一次（无钱包用户也能看到数据）
         await refreshData();
-        
-        const manager = await contract.MANAGER();
-        const myAddr = await signer.getAddress();
-        isManager = myAddr.toLowerCase() === manager.toLowerCase();
-        if (isManager) document.getElementById('managerCard').style.display = 'block';
-        
-        document.getElementById('walletBtn').style.display = 'none';
-        document.getElementById('accountDisplay').style.display = 'inline';
-        document.getElementById('statusDot').className = 'status-dot connected';
-        document.getElementById('statusText').textContent = '已连接 GIWA Sepolia';
-        
-        await refreshData();
-        
-        refreshInterval = setInterval(refreshData, 5000);
-        
-        contract.on('TicketsPurchased', (p, c, a, r) => {
-          showToast(`🎟️ ${shortAddr(p)} 购买了 ${c} 张票！`, 'success');
-          refreshData();
-        });
-        contract.on('WinnersPicked', (w1,p1,w2,p2,w3,p3) => {
-          showToast('🎉 开奖完成！', 'success');
-          refreshData();
-        });
-        contract.on('PhaseChanged', (f,t) => {
-          showToast(`阶段变化: ${phaseName(f)} → ${phaseName(t)}`, 'info');
-          refreshData();
-        });
+
+        // signer contract（仅在有钱包时创建）
+        if (signer) {
+          contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+          const manager = await contract.MANAGER();
+          const myAddr = await signer.getAddress();
+          isManager = myAddr.toLowerCase() === manager.toLowerCase();
+          if (isManager) document.getElementById('managerCard').style.display = 'block';
+
+          document.getElementById('walletBtn').style.display = 'none';
+          document.getElementById('accountDisplay').style.display = 'inline';
+          document.getElementById('statusDot').className = 'status-dot connected';
+          document.getElementById('statusText').textContent = '已连接 GIWA Sepolia';
+
+          refreshInterval = setInterval(refreshData, 5000);
+
+          contract.on('TicketsPurchased', (p, c, a, r) => {
+            showToast(`🎟️ ${shortAddr(p)} 购买了 ${c} 张票！`, 'success');
+            refreshData();
+          });
+          contract.on('WinnersPicked', (w1,p1,w2,p2,w3,p3) => {
+            showToast('🎉 开奖完成！', 'success');
+            refreshData();
+          });
+          contract.on('PhaseChanged', (f,t) => {
+            showToast(`阶段变化: ${phaseName(f)} → ${phaseName(t)}`, 'info');
+            refreshData();
+          });
+        }
       } catch(e) {
         showToast('合约初始化失败: '+e.message, 'error');
       }
