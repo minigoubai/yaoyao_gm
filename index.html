@@ -751,17 +751,25 @@
       if (!contract) return;
       try {
         const [
-          cfg, players, winners, pool, commitCount, round
+          ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase, totalTickets, uniquePlayers, prizeBalance,
+          players, winners, commitCount, round
         ] = await Promise.all([
-          contract.getConfig(),
+          contract.ticketPrice(),
+          contract.maxPlayers(),
+          contract.lotteryDuration(),
+          contract.managerFeeBp().catch(() => 1000),
+          contract.startTime(),
+          contract.endTime(),
+          contract.currentPhase(),
+          contract.getTotalTickets(),
+          contract.getUniquePlayerCount(),
+          contract.getPrizePool(),
           contract.getPlayers(),
           contract.getWinners(),
-          contract.getPrizePool(),
           contract.getCommitProgress(),
           contract.round()
         ]);
 
-        const [ticketPrice, maxPlayers, duration, feeBp, startTime, endTime, phase, totalTickets, uniquePlayers, prizeBalance] = cfg;
         currentPhase = parseInt(phase);
 
         const poolEth = parseFloat(ethers.utils.formatEther(prizeBalance));
