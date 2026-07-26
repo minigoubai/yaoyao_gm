@@ -32,6 +32,9 @@ contract GiwaLotteryV4 {
     uint256 public startTime;
     uint256 public endTime;
 
+    // 确定性随机数：在 checkTimerExpiry 时锁定开奖区块 hash，无法事后篡改
+    bytes32 public drawBlockHash;
+
     address[] public players;
     mapping(address => uint256) public ticketCount;
 
@@ -97,9 +100,10 @@ contract GiwaLotteryV4 {
 
         if (currentPhase == PHASE_ENTRY) {
             if (players.length > 0) {
+                drawBlockHash = blockhash(block.number); // 锁定当前区块 hash 作为随机种子
                 _toDraw();
             } else {
-                endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : 0;
+                endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
             }
         }
     }
@@ -162,15 +166,12 @@ contract GiwaLotteryV4 {
         uint256 n = players.length;
         if (n == 0) { _reset(); return; }
 
+        // 使用 checkTimerExpiry 时锁定的区块 hash，无法事后篡改
+        bytes32 seed = keccak256(abi.encode(drawBlockHash, players, round));
+
         uint256 pool = address(this).balance;
         uint256 fee = (pool * MANAGER_FEE_BP) / BASIS_POINTS;
         uint256 dist = pool - fee;
-
-        bytes32 seed = keccak256(abi.encode(
-            players, round, block.timestamp,
-            block.coinbase, block.prevrandao,
-            block.number, tx.origin
-        ));
 
         uint256[3] memory sel = _pickThree(seed, n);
         address w1 = players[sel[0]];
@@ -231,6 +232,7 @@ contract GiwaLotteryV4 {
         currentPhase = PHASE_ENTRY;
         startTime = block.timestamp;
         endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
+        drawBlockHash = 0x0; // 重置，为下一轮做准备
         emit LotteryReset(round);
     }
 

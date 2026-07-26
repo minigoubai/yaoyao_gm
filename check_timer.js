@@ -7,7 +7,7 @@ require('dotenv').config();
 const https = require('https');
 
 const RPC_HOST = 'sepolia-rpc.giwa.io';
-const ADDR = process.env.CONTRACT_ADDRESS || '0xe6b6f67b41ce5c9A8BC0357A7E51a10Fd9C97a48';
+const ADDR = process.env.CONTRACT_ADDRESS || '0x4bdCD78359772FD0b374B1B766f0453Ce6D672f1';
 const PK = process.env.DEPLOYER_PRIVATE_KEY;
 if (!PK) { console.error('请在 .env 中设置 DEPLOYER_PRIVATE_KEY'); process.exit(1); }
 

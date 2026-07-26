@@ -225,7 +225,7 @@ toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js?v=10"></script>
 <script>
-const CONTRACT = '0xe6b6f67b41ce5c9A8BC0357A7E51a10Fd9C97a48';
+const CONTRACT = '0x4bdCD78359772FD0b374B1B766f0453Ce6D672f1';
 const CHAIN_ID = 91342;
 const RPC = 'https://sepolia-rpc.giwa.io';
 
@@ -252,6 +252,7 @@ const ABI = [
   "function lastWinnerIdx1() view returns (uint256)",
   "function lastWinnerIdx2() view returns (uint256)",
   "function lastWinnerIdx3() view returns (uint256)",
+  "function drawBlockHash() view returns (bytes32)",
   "event TicketsPurchased(address,uint256,uint256,uint256)",
   "event WinnersPicked(address,uint256,address,uint256,address,uint256)",
   "event PhaseChanged(uint8,uint8)",
