@@ -1,1410 +1,369 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GIWA Lottery V2</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    :root {
-      --primary: #6C5CE7;
-      --primary-dark: #5B4CD4;
-      --accent: #FD79A8;
-      --bg: #0D0D1A;
-      --card: #151528;
-      --text: #E8E8F0;
-      --text-dim: #8888AA;
-      --success: #00D2A0;
-      --warning: #FFBE0B;
-      --danger: #FF4757;
-      --border: #2A2A4A;
-      --gold: #FFD700;
-      --silver: #C0C0C0;
-      --bronze: #CD7F32;
-    }
-    
-    body {
-      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      background-image: 
-        radial-gradient(ellipse at 20% 20%, rgba(108, 92, 231, 0.08) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 80%, rgba(253, 121, 168, 0.06) 0%, transparent 50%);
-    }
-    
-    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-    
-    .header { text-align: center; padding: 40px 0 30px; }
-    .logo { font-size: 56px; margin-bottom: 10px; }
-    .header h1 {
-      font-size: 32px; font-weight: 700;
-      background: linear-gradient(135deg, var(--primary), var(--accent));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .header p { color: var(--text-dim); margin-top: 6px; font-size: 14px; }
-    .chain-badge {
-      display: inline-block; margin-top: 12px; padding: 4px 14px;
-      background: rgba(108, 92, 231, 0.15); border: 1px solid rgba(108, 92, 231, 0.3);
-      border-radius: 20px; font-size: 12px; color: var(--primary);
-    }
-    .rules-btn {
-      display: inline-block; margin-top: 12px; margin-left: 10px; padding: 4px 16px;
-      background: rgba(253, 121, 168, 0.15); border: 1px solid rgba(253, 121, 168, 0.4);
-      border-radius: 20px; font-size: 12px; color: var(--accent); cursor: pointer;
-      font-family: inherit;
-    }
-    .rules-btn:hover { background: rgba(253, 121, 168, 0.25); }
-    
-    .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 16px; padding: 24px; margin-bottom: 16px;
-    }
-    .card-title {
-      font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px;
-      color: var(--text-dim); margin-bottom: 16px;
-    }
-    
-    /* Phase Banner */
-    .phase-banner {
-      text-align: center; padding: 20px; border-radius: 12px; margin-bottom: 16px;
-      font-size: 18px; font-weight: 700;
-    }
-    .phase-entry    { background: rgba(0, 210, 160, 0.12); border: 1px solid rgba(0, 210, 160, 0.3); color: var(--success); }
-    .phase-commit   { background: rgba(255, 190, 11, 0.12); border: 1px solid rgba(255, 190, 11, 0.3); color: var(--warning); }
-    .phase-reveal   { background: rgba(108, 92, 231, 0.12); border: 1px solid rgba(108, 92, 231, 0.3); color: var(--primary); }
-    .phase-complete { background: rgba(253, 121, 168, 0.12); border: 1px solid rgba(253, 121, 168, 0.3); color: var(--accent); }
-    
-    /* Stats Grid */
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    .stat-box {
-      background: rgba(255,255,255,0.03); border-radius: 12px;
-      padding: 16px 12px; text-align: center;
-    }
-    .stat-value { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .stat-value.accent { color: var(--accent); }
-    .stat-value.success { color: var(--success); }
-    .stat-value.warning { color: var(--warning); }
-    .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
-    
-    /* Prize Distribution */
-    .prize-dist {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;
-    }
-    .prize-item { text-align: center; padding: 14px 8px; border-radius: 10px; background: rgba(255,255,255,0.03); }
-    .prize-item.gold   { border: 1px solid rgba(255, 215, 0, 0.3); }
-    .prize-item.silver { border: 1px solid rgba(192, 192, 192, 0.3); }
-    .prize-item.bronze { border: 1px solid rgba(205, 127, 50, 0.3); }
-    .prize-item.fee    { border: 1px solid rgba(136, 136, 170, 0.3); }
-    .prize-rank { font-size: 20px; margin-bottom: 4px; }
-    .prize-pct { font-size: 14px; font-weight: 700; }
-    .prize-eth { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-    .gold .prize-pct { color: var(--gold); }
-    .silver .prize-pct { color: var(--silver); }
-    .bronze .prize-pct { color: var(--bronze); }
-    .fee .prize-pct { color: var(--text-dim); }
-    
-    /* Config Form */
-    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .input-group { margin-bottom: 12px; }
-    .input-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
-    .input-group input, .input-group select {
-      width: 100%; padding: 10px 12px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
-      border-radius: 8px; color: var(--text); font-size: 13px; outline: none;
-    }
-    .input-group input:focus, .input-group select:focus { border-color: var(--primary); }
-    
-    /* Buttons */
-    .btn {
-      width: 100%; padding: 14px; border: none; border-radius: 10px;
-      font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      margin-bottom: 8px;
-    }
-    .btn:last-child { margin-bottom: 0; }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white;
-    }
-    .btn-primary:hover:not(:disabled) {
-      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(108, 92, 231, 0.35);
-    }
-    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-    .btn-accent { background: linear-gradient(135deg, var(--accent), #E84393); color: white; }
-    .btn-accent:hover:not(:disabled) {
-      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(253, 121, 168, 0.35);
-    }
-    .btn-warning { background: var(--warning); color: #000; }
-    .btn-danger { background: var(--danger); color: white; }
-    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
-    
-    /* Timer */
-    .countdown { text-align: center; padding: 16px; font-size: 28px; font-weight: 700; font-family: 'Courier New', monospace; color: var(--warning); }
-    .countdown-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
-    
-    /* Wallet Connect Button */
-    .wallet-btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 10px 20px; background: var(--primary); color: white;
-      border: none; border-radius: 10px; cursor: pointer; font-size: 14px;
-      transition: all 0.2s; margin-bottom: 16px;
-    }
-    .wallet-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
-    .wallet-modal {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-      z-index: 9999; align-items: center; justify-content: center;
-    }
-    .wallet-modal.show { display: flex; }
-    .wallet-modal-content {
-      background: var(--card); border-radius: 16px; padding: 24px;
-      width: 320px; max-width: 90vw; border: 1px solid var(--border);
-    }
-    .wallet-modal h3 { margin-bottom: 16px; text-align: center; }
-    .wallet-option {
-      display: flex; align-items: center; gap: 12px; padding: 14px;
-      background: rgba(255,255,255,0.04); border-radius: 10px; margin-bottom: 8px;
-      cursor: pointer; transition: background 0.2s; border: 1px solid transparent;
-    }
-    .wallet-option:hover { background: rgba(255,255,255,0.08); border-color: var(--primary); }
-    .wallet-option img { width: 32px; height: 32px; border-radius: 8px; }
-    .wallet-option-name { font-weight: 600; }
-    .wallet-option-desc { font-size: 11px; color: var(--text-dim); }
-    .wallet-modal-close { margin-top: 12px; width: 100%; padding: 10px;
-      background: transparent; border: 1px solid var(--border); color: var(--text-dim);
-      border-radius: 8px; cursor: pointer; }
-
-    /* Status */
-    .status-bar {
-      display: flex; align-items: center; gap: 8px; padding: 12px 16px;
-      background: rgba(0,0,0,0.2); border-radius: 10px; margin-bottom: 16px; font-size: 13px;
-    }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex-shrink: 0; }
-    .status-dot.connected { background: var(--success); }
-    
-    /* Player List */
-    .player-list { max-height: 180px; overflow-y: auto; }
-    .player-list::-webkit-scrollbar { width: 4px; }
-    .player-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    .player-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px; background: rgba(255,255,255,0.03);
-      border-radius: 8px; margin-bottom: 4px; font-size: 13px;
-    }
-    .player-item .addr { font-family: 'Courier New', monospace; color: var(--text-dim); }
-    .player-item .idx { color: var(--primary); font-size: 11px; margin-right: 8px; min-width: 24px; }
-    
-    /* Winners */
-    .winners-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .winner-card { text-align: center; padding: 16px 8px; border-radius: 12px; background: rgba(255,255,255,0.03); }
-    .winner-card.gold   { border: 1px solid rgba(255, 215, 0, 0.4); }
-    .winner-card.silver { border: 1px solid rgba(192, 192, 192, 0.4); }
-    .winner-card.bronze { border: 1px solid rgba(205, 127, 50, 0.4); }
-    .winner-rank { font-size: 28px; margin-bottom: 4px; }
-    .winner-addr { font-family: 'Courier New', monospace; font-size: 11px; color: var(--text-dim); word-break: break-all; }
-    .winner-amt { font-size: 16px; font-weight: 700; margin-top: 6px; }
-    .gold   .winner-amt { color: var(--gold); }
-    .silver .winner-amt { color: var(--silver); }
-    .bronze .winner-amt { color: var(--bronze); }
-    
-    /* Commit Reveal */
-    .commit-hint {
-      padding: 12px 16px; background: rgba(255, 190, 11, 0.08);
-      border: 1px solid rgba(255, 190, 11, 0.2); border-radius: 10px;
-      font-size: 13px; color: var(--warning); margin-bottom: 12px;
-    }
-    .commit-hint code {
-      background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;
-      font-family: 'Courier New', monospace; font-size: 12px;
-    }
-    
-    /* Info rows */
-    .info-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;
-    }
-    .info-row:last-child { border-bottom: none; }
-    .info-row .label { color: var(--text-dim); }
-    .info-row .value { color: var(--text); font-family: 'Courier New', monospace; }
-    
-    /* Manager Card */
-    .manager-card { border-color: rgba(253, 121, 168, 0.3); }
-    .manager-badge {
-      display: inline-block; padding: 2px 10px; background: rgba(253, 121, 168, 0.15);
-      border: 1px solid rgba(253, 121, 168, 0.3); border-radius: 20px;
-      font-size: 11px; color: var(--accent);
-    }
-    
-    /* Spinner */
-    .spinner {
-      display: inline-block; width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
-      border-radius: 50%; animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    
-    /* Toast */
-    .toast {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      padding: 12px 24px; background: var(--card); border: 1px solid var(--border);
-      border-radius: 12px; font-size: 14px; z-index: 9999;
-      opacity: 0; transition: opacity 0.3s; pointer-events: none;
-      max-width: 90%; text-align: center;
-    }
-    .toast.show { opacity: 1; }
-    .toast.success { border-color: var(--success); color: var(--success); }
-    .toast.error   { border-color: var(--danger); color: var(--danger); }
-    .toast.info    { border-color: var(--primary); color: var(--primary); }
-    .toast.warning { border-color: var(--warning); color: var(--warning); }
-    
-    /* Network Warning */
-    .network-warning {
-      display: none; padding: 16px;
-      background: rgba(255, 71, 87, 0.1); border: 1px solid rgba(255, 71, 87, 0.3);
-      border-radius: 12px; margin-bottom: 16px; font-size: 13px; color: var(--danger); text-align: center;
-    }
-    .network-warning.show { display: block; }
-    
-    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIWA 抽奖</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0e17;color:#e2e8f0;min-height:100vh}
+header{background:#1a1f2e;border-bottom:1px solid #2d3748;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+header h1{font-size:20px;color:#60a5fa}
+.header-info{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#94a3b8}
+header button{background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
+header button:hover{background:#1d4ed8}
+.container{max-width:720px;margin:0 auto;padding:20px 16px}
+.card{background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;padding:20px;margin-bottom:16px}
+.card-title{font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.balance{font-size:28px;font-weight:700;color:#60a5fa}
+.phase-banner{padding:12px 16px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;margin-bottom:16px}
+.phase-entry{background:#1e3a5f;color:#93c5fd}
+.phase-draw{background:#3b2f6b;color:#c4b5fd}
+.phase-complete{background:#1a3a2a;color:#86efac}
+.timer{text-align:center;font-size:36px;font-weight:700;margin:16px 0;font-variant-numeric:tabular-nums;color:#fbbf24}
+.timer-label{text-align:center;color:#64748b;font-size:13px;margin-bottom:8px}
+.prize-pool{text-align:center;margin:12px 0}
+.prize-pool .amount{font-size:24px;font-weight:700;color:#4ade80}
+.prize-pool .label{font-size:12px;color:#64748b}
+.input-row{display:flex;gap:8px;margin-bottom:12px}
+input{p flex:1;background:#0f1520;border:1px solid #2d3748;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:15px}
+input:focus{outline:none;border-color:#60a5fa}
+button.btn-primary{width:100%;background:#2563eb;color:#fff;border:none;padding:14px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer}
+button.btn-primary:hover{background:#1d4ed8}
+button.btn-primary:disabled{background:#1e3a5f;color:#64748b;cursor:not-allowed}
+button.btn-secondary{background:#2d3748;color:#e2e8f0;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px}
+button.btn-secondary:hover{background:#3d4a5c}
+.hint{font-size:12px;color:#64748b;text-align:center;margin-top:8px}
+.players-list{max-height:200px;overflow-y:auto;margin-top:8px}
+.player-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e293b;font-size:13px}
+.player-item .addr{font-family:monospace;color:#60a5fa}
+.player-item .tickets{color:#94a3b8}
+.winner-card{background:#1a3a2a;border:1px solid #22c55e;border-radius:8px;padding:16px;margin-top:12px;text-align:center}
+.winner-card .prize{font-size:13px;color:#86efac;text-transform:uppercase;margin-bottom:4px}
+.winner-card .address{font-size:15px;font-weight:700;color:#4ade80;font-family:monospace}
+.winner-card .amount{font-size:18px;font-weight:700;color:#4ade80;margin-top:4px}
+toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1f2e;border:1px solid #3b82f6;color:#e2e8f0;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;display:none}
+.status-bar{display:flex;justify-content:space-around;margin-top:12px;font-size:13px;color:#94a3b8}
+.status-bar .val{font-weight:700;color:#e2e8f0}
+.footer{text-align:center;color:#334155;font-size:12px;margin-top:32px;padding:16px}
+a{color:#60a5fa;text-decoration:none}
+</style>
 </head>
 <body>
-  <div class="container">
-    
-    <!-- Header -->
-    <div class="header">
-      <div class="logo">🎰</div>
-      <h1>GIWA Lottery V2</h1>
-      <p>多等奖 · 公平随机 · 自动开奖</p>
-      <div class="chain-badge">GIWA Sepolia · Chain ID: 91342</div>
-      <button class="rules-btn" onclick="showRulesModal()">📋 玩法规则</button>
+<header>
+  <h1>🎰 GIWA Lottery</h1>
+  <div class="header-info">
+    <span id="networkBadge">GIWA Sepolia</span>
+    <span id="roundBadge">Round 1</span>
+  </div>
+  <button id="walletBtn" onclick="connectWallet()">连接钱包</button>
+  <button id="switchBtn" style="display:none" onclick="switchToGiwa()">切换网络</button>
+</header>
+
+<div class="container">
+  <!-- 阶段横幅 -->
+  <div id="phaseBanner" class="phase-banner phase-entry">🛒 购票中</div>
+
+  <!-- 余额卡片 -->
+  <div class="card">
+    <div class="card-title">奖池金额</div>
+    <div class="prize-pool">
+      <div class="amount" id="poolAmount">0 ETH</div>
+      <div class="label" id="ticketCount">0 张票 / 0 人</div>
     </div>
-    
-    <!-- Network Warning -->
-    <div class="network-warning" id="networkWarning">
-      ⚠️ 请切换到 GIWA Sepolia 测试网络 (Chain ID: 91342)
-    </div>
-    
-    <!-- Connection Status -->
+    <div class="timer-label">距离开奖</div>
+    <div class="timer" id="timerDisplay">--:--:--</div>
     <div class="status-bar">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">正在连接钱包...</span>
-      <button class="wallet-btn" id="walletBtn" onclick="showWalletModal()" style="margin-left:auto;margin-bottom:0;padding:6px 14px;font-size:12px">连接钱包</button>
-      <span id="managerBadge" class="manager-badge" style="display:none;margin-left:8px">管理员</span>
-      <span id="accountDisplay" style="margin-left:8px;font-size:12px;color:var(--text-dim)"></span>
-    </div>
-
-    <!-- Wallet Connect Modal -->
-    <div class="wallet-modal" id="walletModal">
-      <div class="wallet-modal-content">
-        <h3>连接钱包</h3>
-        <div class="wallet-option" onclick="connectWith('metamask')">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask">
-          <div>
-            <div class="wallet-option-name">MetaMask</div>
-            <div class="wallet-option-desc">最流行的加密钱包</div>
-          </div>
-        </div>
-        <div class="wallet-option" onclick="connectWith('coinbase')">
-          <img src="https://www.coinbase.com/favicon.ico" alt="Coinbase">
-          <div>
-            <div class="wallet-option-name">Coinbase Wallet</div>
-            <div class="wallet-option-desc">Coinbase 官方钱包</div>
-          </div>
-        </div>
-        <div class="wallet-option" onclick="connectWith('trust')">
-          <img src="https://assets.coingecko.com/wallet_images/images/3580/large/Trust.png" alt="Trust Wallet">
-          <div>
-            <div class="wallet-option-name">Trust Wallet</div>
-            <div class="wallet-option-desc">移动端热门钱包</div>
-          </div>
-        </div>
-        <div class="wallet-option" onclick="connectWith('okx')">
-          <img src="https://www.okx.com/favicon.ico" alt="OKX">
-          <div>
-            <div class="wallet-option-name">OKX Wallet</div>
-            <div class="wallet-option-desc">OKX Web3 钱包</div>
-          </div>
-        </div>
-        <div class="wallet-option" onclick="connectWith('rabby')">
-          <img src="https://rabby.io/favicon.ico" alt="Rabby">
-          <div>
-            <div class="wallet-option-name">Rabby</div>
-            <div class="wallet-option-desc">多链加密钱包</div>
-          </div>
-        </div>
-        <button class="wallet-modal-close" onclick="hideWalletModal()">取消</button>
-      </div>
-    </div>
-    
-    <!-- Phase Banner -->
-    <div class="phase-banner phase-entry" id="phaseBanner">
-      🎟️ <span id="phaseText">开放参与中</span>
-    </div>
-    
-    <!-- Prize Distribution -->
-    <div class="card">
-      <div class="card-title">奖项分布</div>
-      <div class="prize-dist">
-        <div class="prize-item gold">
-          <div class="prize-rank">🥇</div>
-          <div class="prize-pct">50%</div>
-          <div class="prize-eth" id="p1Eth">- ETH</div>
-        </div>
-        <div class="prize-item silver">
-          <div class="prize-rank">🥈</div>
-          <div class="prize-pct">25%</div>
-          <div class="prize-eth" id="p2Eth">- ETH</div>
-        </div>
-        <div class="prize-item bronze">
-          <div class="prize-rank">🥉</div>
-          <div class="prize-pct">15%</div>
-          <div class="prize-eth" id="p3Eth">- ETH</div>
-        </div>
-        <div class="prize-item fee">
-          <div class="prize-rank">⚙️</div>
-          <div class="prize-pct">10%</div>
-          <div class="prize-eth">管理员费</div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Stats -->
-    <div class="card">
-      <div class="card-title">奖池信息</div>
-      <div class="stats-grid">
-        <div class="stat-box">
-          <div class="stat-value accent" id="prizePool">0</div>
-          <div class="stat-label">奖池 (ETH)</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value" id="playerCount">0</div>
-          <div class="stat-label">参与人数</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value success" id="thresholdDisplay">-</div>
-          <div class="stat-label">触发条件</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value warning" id="roundNum">1</div>
-          <div class="stat-label">当前轮次</div>
-        </div>
-      </div>
-      
-      <!-- Timer (show when timer active) -->
-      <div id="timerSection" style="display:none">
-        <div class="countdown" id="countdownDisplay">--:--:--</div>
-        <div class="countdown-label">剩余时间</div>
-      </div>
-    </div>
-    
-    <!-- Winners (show after draw) -->
-    <div class="card" id="winnersCard" style="display:none">
-      <div class="card-title">🎉 本轮中奖者</div>
-      <div class="winners-grid">
-        <div class="winner-card gold">
-          <div class="winner-rank">🥇</div>
-          <div class="winner-addr" id="w1Addr">-</div>
-          <div class="winner-amt" id="w1Amt">- ETH</div>
-        </div>
-        <div class="winner-card silver">
-          <div class="winner-rank">🥈</div>
-          <div class="winner-addr" id="w2Addr">-</div>
-          <div class="winner-amt" id="w2Amt">- ETH</div>
-        </div>
-        <div class="winner-card bronze">
-          <div class="winner-rank">🥉</div>
-          <div class="winner-addr" id="w3Addr">-</div>
-          <div class="winner-amt" id="w3Amt">- ETH</div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Commit Hint (show in commit phase) -->
-    <div class="commit-hint" id="commitHint" style="display:none">
-      💡 提交你的随机数：<code>keccak256(你的随机数 + 你的钱包地址)</code>
-      <br><span style="font-size:11px;color:var(--text-dim)">可以用任何随机字符串（UUID、密码等），提交后<strong>必须保留</strong>以供揭示</span>
-    </div>
-    
-    <!-- Enter / Action Card -->
-    <div class="card" id="actionCard">
-      <div class="card-title">参与抽奖</div>
-      
-      <div class="info-row">
-        <span class="label">票价</span>
-        <span class="value" id="ticketPriceDisplay">0.001 ETH</span>
-      </div>
-      <div class="info-row">
-        <span class="label">你的地址</span>
-        <span class="value" id="yourAddress">-</span>
-      </div>
-      <div class="info-row">
-        <span class="label">合约地址</span>
-        <span class="value" id="contractAddr">-</span>
-      </div>
-      
-      <!-- Entry Phase -->
-      <div id="entrySection">
-        <div class="info-row">
-          <span class="label">你的票数</span>
-          <span class="value" id="myTicketCount">0 张</span>
-        </div>
-        <div class="info-row">
-          <span class="label">总票数</span>
-          <span class="value" id="totalTicketsDisplay">0 张</span>
-        </div>
-        <div class="input-group" style="margin-top:12px">
-          <label>购买票数（1-50张）</label>
-          <input type="number" id="ticketCountInput" value="1" min="1" max="50" style="width:80px">
-          <span style="color:var(--text-dim);margin-left:8px;font-size:13px">张 × <span id="costDisplay">0.001</span> ETH = <span id="totalCostDisplay" style="color:var(--accent);font-weight:700">0.001</span> ETH</span>
-        </div>
-        <button class="btn btn-primary" id="enterBtn" onclick="buyTickets()">
-          🎟️ 购买奖券
-        </button>
-      </div>
-      
-      <!-- Commit Phase -->
-      <div id="commitSection" style="display:none">
-        <div class="input-group">
-          <label>提交随机数承诺 (keccak256 hash)</label>
-          <input type="text" id="commitInput" placeholder="输入你的随机字符串，浏览器会自动计算哈希">
-        </div>
-        <button class="btn btn-accent" id="commitBtn" onclick="submitCommitment()">
-          🔐 提交承诺
-        </button>
-      </div>
-      
-      <!-- Reveal Phase -->
-      <div id="revealSection" style="display:none">
-        <div class="input-group">
-          <label>揭示你的随机数（输入之前提交的原始随机字符串）</label>
-          <input type="text" id="revealInput" placeholder="输入之前使用的随机字符串">
-        </div>
-        <button class="btn btn-accent" id="revealBtn" onclick="revealRandomness()">
-          🔓 揭示随机数
-        </button>
-        <button class="btn btn-primary" id="drawBtn" onclick="revealAndDraw()" style="margin-top:8px">
-          🎲 开奖（所有人揭示后可用）
-        </button>
-      </div>
-    </div>
-    
-    <!-- Config (Manager Only) -->
-    <div class="card manager-card" id="managerCard" style="display:none">
-      <div class="card-title">
-        🛠️ 管理员控制
-        <span class="manager-badge" style="margin-left:8px">仅管理员可见</span>
-      </div>
-      
-      <div class="config-grid">
-        <div class="input-group">
-          <label>票价 (ETH)</label>
-          <input type="number" id="cfgTicketPrice" step="0.001" min="0.001" placeholder="0.001">
-        </div>
-        <div class="input-group">
-          <label>阈值人数 (0=禁用)</label>
-          <input type="number" id="cfgMaxPlayers" min="0" placeholder="10">
-        </div>
-        <div class="input-group">
-          <label>定时开奖 (秒, 0=禁用)</label>
-          <input type="number" id="cfgDuration" min="0" placeholder="3600">
-        </div>
-        <div class="input-group">
-          <label>管理员费率 (bps, max 2000)</label>
-          <input type="number" id="cfgFeeBp" min="0" max="2000" placeholder="1000">
-        </div>
-      </div>
-      <button class="btn btn-primary" onclick="configureLottery()">
-        ⚙️ 应用配置
-      </button>
-      
-      <div class="btn-grid" style="margin-top:12px">
-        <button class="btn btn-warning" onclick="forceStartCommit()">
-          ⏭️ 强制进入承诺阶段
-        </button>
-        <button class="btn btn-danger" onclick="forceDraw()">
-          🔨 强制开奖
-        </button>
-      </div>
-      <button class="btn btn-danger" onclick="cancelRound()" style="margin-top:8px">
-        ❌ 取消本轮（退款）
-      </button>
-    </div>
-    
-    <!-- Player List -->
-    <div class="card">
-      <div class="card-title">当前参与者 <span id="playerListCount"></span></div>
-      <div class="player-list" id="playerList">
-        <div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px">暂无参与者</div>
-      </div>
-    </div>
-    
-    <!-- Commit Status (Manager) -->
-    <div class="card" id="commitStatusCard" style="display:none">
-      <div class="card-title">📊 承诺提交进度</div>
-      <div class="info-row">
-        <span class="label">已提交</span>
-        <span class="value" id="commitCount">0 / 0</span>
-      </div>
-      <div class="info-row">
-        <span class="label">剩余</span>
-        <span class="value" id="commitRemaining">0</span>
-      </div>
-      <div id="commitProgress" style="margin-top:8px"></div>
-    </div>
-    
-    <div style="text-align:center;padding:30px 0;font-size:12px;color:var(--text-dim)">
-      <button onclick="showRulesModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;font-size:12px">玩法规则</button> · Powered by GIWA Chain · Commit-Reveal 随机机制
+      <div>票价 <span class="val" id="ticketPriceDisplay">0.001 ETH</span></div>
+      <div>最高 <span class="val" id="maxPlayersDisplay">50</span> 人</div>
     </div>
   </div>
 
-  <!-- 规则说明弹窗 -->
-  <div class="wallet-modal" id="rulesModal">
-    <div class="wallet-modal-content" style="max-height:80vh;overflow-y:auto;text-align:left;padding:24px">
-      <h3 style="text-align:center">🎰 抽奖规则</h3>
-      <div style="font-size:13px;line-height:1.8;color:var(--text)">
-        <p style="margin-top:0"><strong>开奖条件（满足任一即开奖）</strong></p>
-        <ul style="margin:8px 0;padding-left:20px">
-          <li>参与人数达到上限（50人）</li>
-          <li>定时到期（每轮1小时）</li>
-          <li>管理员手动开奖</li>
-        </ul>
-        <p><strong>参与流程</strong></p>
-        <ol style="margin:8px 0;padding-left:20px">
-          <li><strong>购买奖券</strong> — 输入数量，支付 ETH（票价 × 数量）</li>
-          <li><strong>等待开奖</strong> — 50人满或1小时倒计时结束</li>
-          <li><strong>自动开奖</strong> — 合约自动开奖，无需人工干预</li>
-        </ol>
-        <p><strong>奖项分配</strong></p>
-        <ul style="margin:8px 0;padding-left:20px">
-          <li>🥇 一等奖：奖池的 <strong>50%</strong></li>
-          <li>🥈 二等奖：奖池的 <strong>25%</strong></li>
-          <li>🥉 三等奖：奖池的 <strong>15%</strong></li>
-          <li>⚙️ 管理费：奖池的 <strong>10%</strong></li>
-        </ul>
-        <p><strong>公平机制</strong></p>
-        <ul style="margin:8px 0;padding-left:20px">
-          <li>真随机数（区块 prevrandao + 多方随机数组合）</li>
-          <li>合约代码开源，链上公开可验证</li>
-          <li>开奖结果自动执行，无法人为干预</li>
-        </ul>
-        <p><strong>风险提示</strong></p>
-        <ul style="margin:8px 0;padding-left:20px">
-          <li>测试网代币无真实价值</li>
-          <li>智能合约存在代码风险，请自行评估</li>
-          <li>中奖概率 = 你的票数 ÷ 总票数（每人可购多张）</li>
-        </ul>
-      </div>
-      <button class="wallet-modal-close" onclick="hideRulesModal()" style="margin-top:16px">知道了</button>
+  <!-- 购票区 -->
+  <div class="card" id="buySection">
+    <div class="card-title">购买抽奖券</div>
+    <div class="input-row">
+      <input type="number" id="ticketCountInput" min="1" max="50" value="1" placeholder="购买数量">
+    </div>
+    <button class="btn-primary" id="buyBtn" onclick="buyTickets()">购买抽奖券</button>
+    <div class="hint" id="buyHint">票价 <span id="hintPrice">0.001</span> ETH × <span id="hintCount">1</span> 张 = <span id="hintTotal">0.001</span> ETH</div>
+  </div>
+
+  <!-- 开奖区 -->
+  <div class="card" id="drawSection" style="display:none">
+    <div class="card-title">🎉 开奖时间到！</div>
+    <button class="btn-primary" id="triggerDrawBtn" onclick="triggerDraw()">🎰 触发开奖</button>
+    <div class="hint">触发后无法撤回，请确认所有购票已完成</div>
+  </div>
+
+  <!-- 中奖结果 -->
+  <div id="winnerSection" style="display:none">
+    <div class="winner-card" id="winner1Card">
+      <div class="prize">🥇 一等奖</div>
+      <div class="address" id="winner1Addr">-</div>
+      <div class="amount" id="winner1Amount">-</div>
+    </div>
+    <div class="winner-card" id="winner2Card" style="margin-top:8px">
+      <div class="prize">🥈 二等奖</div>
+      <div class="address" id="winner2Addr">-</div>
+      <div class="amount" id="winner2Amount">-</div>
+    </div>
+    <div class="winner-card" id="winner3Card" style="margin-top:8px">
+      <div class="prize">🥉 三等奖</div>
+      <div class="address" id="winner3Addr">-</div>
+      <div class="amount" id="winner3Amount">-</div>
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <!-- 参与玩家 -->
+  <div class="card" id="playersCard">
+    <div class="card-title">当前参与者 (<span id="playersCount">0</span>)</div>
+    <div class="players-list" id="playersList"></div>
+  </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script>
-    // =============================================
-    // 配置
-    // =============================================
-    const GIWA_SEPOLIA_CHAIN_ID = '0x164CE'; // 91342
-    const GIWA_SEPOLIA_RPC = 'https://sepolia-rpc.giwa.io';
+<div class="footer">
+  合约: <span id="contractAddr" style="font-family:monospace">-</span><br>
+  <a href="https://sepolia.giwa.io" target="_blank">GIWA Sepolia 浏览器</a>
+</div>
 
-    // ── 直接 RPC 调用（绕过 ethers.Contract 的兼容性问题）───────────────
-    async function rpcCall(method, params = []) {
-      const res = await fetch(GIWA_SEPOLIA_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+<div id="toast"></div>
+
+<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+<script>
+const CONTRACT = '0x86C027ec9913Ea5722757dEF69a8162543b77617';
+const CHAIN_ID = 91342;
+const RPC = 'https://sepolia-rpc.giwa.io';
+
+const ABI = [
+  "function buyTickets(uint256 _count) payable",
+  "function enter() payable",
+  "function checkTimerExpiry()",
+  "function triggerDraw()",
+  "function getConfig() view returns (uint256,uint256,uint256,uint256,uint256,uint8,uint256,uint256)",
+  "function getPlayers() view returns (address[])",
+  "function getTicketCount(address) view returns (uint256)",
+  "function getPrizePool() view returns (uint256)",
+  "function getTotalTickets() view returns (uint256)",
+  "function ticketPrice() view returns (uint256)",
+  "function maxPlayers() view returns (uint256)",
+  "function currentPhase() view returns (uint8)",
+  "function endTime() view returns (uint256)",
+  "function round() view returns (uint256)",
+  "function MANAGER() view returns (address)",
+  "event TicketsPurchased(address,uint256,uint256,uint256)",
+  "event WinnersPicked(address,uint256,address,uint256,address,uint256)",
+  "event PhaseChanged(uint8,uint8)",
+  "event LotteryReset(uint256)"
+];
+
+let provider, signer, contract, account;
+const PHASE_ENTRY = 0, PHASE_DRAW = 1;
+
+function shortAddr(a) { return a ? a.slice(0,6)+'...'+a.slice(-4) : '-'; }
+function fmtEth(v) { return (Number(v)/1e18).toFixed(4)+' ETH'; }
+function fmtTime(ts) {
+  if (!ts || ts <= 0) return '--:--:--';
+  const now = Math.floor(Date.now()/1000);
+  const diff = ts - now;
+  if (diff <= 0) return '00:00:00';
+  const h = Math.floor(diff/3600);
+  const m = Math.floor((diff%3600)/60);
+  const s = diff%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display='block';
+  setTimeout(()=>t.style.display='none',3000);
+}
+
+async function connectWallet() {
+  if (!window.ethereum) { alert('请安装 MetaMask'); return; }
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    signer = provider.getSigner();
+    account = await signer.getAddress();
+    document.getElementById('walletBtn').textContent = shortAddr(account);
+    await switchToGiwa();
+    contract = new ethers.Contract(CONTRACT, ABI, signer);
+    await loadData();
+    provider.on('block', loadData);
+  } catch(e) { showToast('连接失败: '+(e.message||'')); }
+}
+
+async function switchToGiwa() {
+  const chainId = await window.ethereum.request({method:'eth_chainId'});
+  if (parseInt(chainId) !== CHAIN_ID) {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{chainId: '0x1652E'}]
       });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error.message);
-      return json.result;
-    }
-    async function ethCall(hexData) {
-      return await rpcCall('eth_call', [{ to: CONTRACT_ADDRESS, data: hexData }, 'latest']);
-    }
-    // keccak256 helper
-    async function keccak256(str) {
-      const msgBytes = new TextEncoder().encode(str);
-      const hashHex = await crypto.subtle.digest('SHA-256', msgBytes).then(b => {
-        return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
-      });
-      // SHA-256不是keccak，需要用WebCrypto的SHA-256再转keccak
-      // 改用已知selector，不动态计算
-      return hashHex;
-    }
-    function encodeSignature(sig) {
-      // 用ethers.js的默认行为：取keccak前4字节
-      // 但这里直接硬编码已知selector
-      return null; // 将在下面直接使用硬编码selector
-    }
-    function funcSelector(sig) {
-      // 硬编码已知selector
-      const map = {
-        'ticketPrice()': '0x1209b1f6',
-        'maxPlayers()': '0x4c2412a2',
-        'lotteryDuration()': '0x2d97902f',
-        'startTime()': '0x78e97925',
-        'endTime()': '0x3197cbb6',
-        'currentPhase()': '0x055ad42e',
-        'getTotalTickets()': '0x06e8337f',
-        'getUniquePlayerCount()': '0x91aae8f8',
-        'getPrizePool()': '0x884bf67c',
-        'getPlayers()': '0x8b5b9ccc',
-        'getWinners()': '0xdf15c37e',
-        'getCommitProgress()': '0x5dbcb739',
-        'getTicketCount(address)': '0xcff82e22',
-        'MANAGER()': '0x1b2df850',
-        'managerFeeBp()': '0xbfc6cab3'
-      };
-      return map[sig] || null;
-    }
-    function solidityCall(funcSig, ...params) {
-      const sel = funcSelector(funcSig);
-      if (!sel) return null;
-      let data = sel;
-      for (const p of params) {
-        if (typeof p === 'string' && p.startsWith('0x')) {
-          data += p.slice(2).padStart(64, '0');
-        } else if (typeof p === 'number') {
-          data += p.toString(16).padStart(64, '0');
-        } else {
-          data += BigInt(p).toString(16).padStart(64, '0');
-        }
-      }
-      return data;
-    }
-    // 解码纯整数返回值
-    function decodeUint(hex) {
-      if (!hex || hex === '0x') return 0;
-      return parseInt(hex, 16);
-    }
-    // 解码动态数组（address[]）
-    // EVM storage: 每个slot存一个address (20字节)，hex编码时后20字节=40 hex字符即地址
-    // slot0[offset]=0x20, slot1[count]=N, slot2..N+1=addresses
-    // 正确: 取每个slot的最后40字符（去掉前面的12字节零填充）
-    function decodeAddressArray(hex) {
-      if (!hex || hex === '0x' || hex.length < 128) return [];
-      const count = parseInt(hex.slice(66, 130), 16);
-      const items = [];
-      for (let i = 0; i < count; i++) {
-        const slotStart = 128 + i * 64;
-        const addr = '0x' + hex.slice(slotStart + 24, slotStart + 64);
-        items.push(addr);
-      }
-      return items;
-    }
-    // 解码 struct Winners { address[3] winners; uint256[3] amounts }
-    function decodeWinners(hex) {
-      if (!hex || hex === '0x') return [['0x0','0x0','0x0'], [0n,0n,0n]];
-      if (hex.length < 320) return [['0x0','0x0','0x0'], [0n,0n,0n]];
-      try {
-        const winners = [];
-        for (let i = 0; i < 3; i++) {
-          winners.push('0x' + hex.slice(128 + i * 64 + 24, 128 + i * 64 + 64));
-        }
-        const amounts = [];
-        for (let i = 0; i < 3; i++) {
-          amounts.push(BigInt('0x' + hex.slice(320 + i * 64, 320 + i * 64 + 64)));
-        }
-        return [winners, amounts];
-      } catch(e) { return [['0x0','0x0','0x0'], [0n,0n,0n]]; }
-    }
-    // 解码 (uint256 comm, uint256 total)
-    function decodeCommitProgress(hex) {
-      if (!hex || hex === '0x') return [0, 0];
-      return [decodeUint(hex.slice(0, 66)), decodeUint(hex.slice(128, 194))];
-    }
-    // 解码 address[]
-    function decodeAddressArrayDynamic(hex) {
-      if (!hex || hex === '0x' || hex.length < 128) return [];
-      const count = parseInt(hex.slice(64, 128), 16);
-      const items = [];
-      for (let i = 0; i < count; i++) {
-        const offset = 128 + i * 64;
-        items.push('0x' + hex.slice(offset + 12, offset + 64));
-      }
-      return items;
-    }
-    let CONTRACT_ADDRESS = '0x3f4d07B2D4006fA08dBEA182C3CEfe2eaD7fB4A4';
-    let provider = null;
-    let signer = null;
-    let contract = null;
-    let readOnlyContract = null; // 只读 contract，无钱包也能读取链上数据
-    let isManager = false;
-    let currentPhase = 0;
-    let myRandomness = null;
-    let myCommitment = null;
-    let refreshInterval = null;
-    let timerInterval = null;
-    
-    // =============================================
-    // Toast
-    // =============================================
-    function showToast(msg, type='info') {
-      const t = document.getElementById('toast');
-      t.textContent = msg; t.className = `toast ${type} show`;
-      setTimeout(() => t.className = 'toast', 3500);
-    }
-    
-    function shortAddr(a) { return a ? a.slice(0,6)+'...'+a.slice(-4) : '-'; }
-    
-    // =============================================
-    // 钱包连接
-    // =============================================
-    function showWalletModal() {
-      document.getElementById('walletModal').classList.add('show');
-    }
-    function hideWalletModal() {
-      document.getElementById('walletModal').classList.remove('show');
-    }
-    function showRulesModal() {
-      document.getElementById('rulesModal').classList.add('show');
-    }
-    function hideRulesModal() {
-      document.getElementById('rulesModal').classList.remove('show');
-    }
-    // 点击弹窗背景关闭
-    document.addEventListener('click', function(e) {
-      if (e.target.classList.contains('wallet-modal')) {
-        hideWalletModal();
-        hideRulesModal();
-      }
-    });
-
-    async function connectWith(walletType) {
-      hideWalletModal();
-      let ethereum = null;
-
-      if (walletType === 'metamask') {
-        if (window.ethereum && window.ethereum.isMetaMask) ethereum = window.ethereum;
-        else if (window.web3 && window.web3.currentProvider) ethereum = window.web3.currentProvider;
-      } else if (walletType === 'coinbase') {
-        if (window.coinbaseWalletExtension) ethereum = window.coinbaseWalletExtension;
-        else if (window.ethereum && window.ethereum.isCoinbaseWallet) ethereum = window.ethereum;
-      } else if (walletType === 'trust') {
-        if (window.trustWallet || window.isTrust) ethereum = window.trustWallet || window;
-      } else if (walletType === 'okx') {
-        if (window.okxwallet) ethereum = window.okxwallet;
-      } else if (walletType === 'rabby') {
-        if (window.rabby) ethereum = window.rabby;
-      }
-
-      if (!ethereum) {
-        // 尝试通过自定义 provider 检测
-        const providers = Object.keys(window).filter(k => k.toLowerCase().includes('ethereum') || k.toLowerCase().includes('wallet') || k.toLowerCase().includes('provider'));
-        for (const key of providers) {
-          if (window[key] && typeof window[key].request === 'function') {
-            ethereum = window[key];
-            break;
-          }
-        }
-      }
-
-      if (!ethereum) {
-        showToast('未检测到 ' + walletType + '，请安装后再试', 'error');
-        return;
-      }
-
-      try {
-        const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-        if (accounts.length === 0) { showToast('连接被拒绝', 'error'); return; }
-        provider = new ethers.providers.Web3Provider(ethereum);
-        signer = provider.getSigner();
-        const addr = await signer.getAddress();
-        document.getElementById('accountDisplay').textContent = shortAddr(addr);
-        document.getElementById('yourAddress').textContent = shortAddr(addr);
-        document.getElementById('walletBtn').textContent = shortAddr(addr);
-        document.getElementById('walletBtn').onclick = () => {};
-        await switchToGiwaNetwork();
-        ethereum.on('accountsChanged', () => location.reload());
-        ethereum.on('chainChanged', () => location.reload());
-        initContract();
-      } catch(e) {
-        showToast('连接失败: ' + e.message, 'error');
-        document.getElementById('statusText').textContent = '连接失败';
-      }
-    }
-
-    async function connectWallet() {
-      if (!window.ethereum) { showToast('请安装 MetaMask！','error'); return; }
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner();
-        const addr = await signer.getAddress();
-        document.getElementById('accountDisplay').textContent = shortAddr(addr);
-        document.getElementById('yourAddress').textContent = shortAddr(addr);
-        await switchToGiwaNetwork();
-        window.ethereum.on('accountsChanged', () => location.reload());
-        window.ethereum.on('chainChanged', () => location.reload());
-        initContract();
-      } catch(e) {
-        showToast('连接失败: '+e.message, 'error');
-        document.getElementById('statusText').textContent = '连接失败';
-      }
-    }
-    
-    async function switchToGiwaNetwork() {
-      // 先检查当前网络，避免重复切换触发错误
-      try {
-        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        if (chainId === GIWA_SEPOLIA_CHAIN_ID) return; // 已是 GIWA Sepolia，无需切换
-      } catch(e) {}
-
-      try {
+    } catch(e) {
+      if (e.code===4902) {
         await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: GIWA_SEPOLIA_CHAIN_ID }]
+          method: 'wallet_addEthereumChain',
+          params: [{chainId:'0x1652E',chainName:'GIWA Sepolia',rpcUrls:['https://sepolia-rpc.giwa.io'],blockExplorerUrls:['https://sepolia.giwa.io']}]
         });
-      } catch(e) {
-        if (e.code === 4902) {
-          // 链未添加，先添加
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: GIWA_SEPOLIA_CHAIN_ID,
-                chainName: 'GIWA Sepolia',
-                nativeCurrency: { name:'ETH', symbol:'ETH', decimals:18 },
-                rpcUrls: [GIWA_SEPOLIA_RPC],
-                blockExplorerUrls: ['https://sepolia-explorer.giwa.io'],
-              }]
-            });
-          } catch(addErr) {
-            if (addErr.code !== 4001) console.error('add network error:', addErr);
-          }
-        } else if (e.code !== 4001) {
-          console.error('switch network error:', e);
-        }
       }
     }
-    
-    // =============================================
-    // 合约初始化
-    // =============================================
-    async function initContract() {
-      if (!CONTRACT_ADDRESS) {
-        showToast('合约地址未设置', 'error'); return;
-      }
-      try {
-        // 只读 contract（始终创建，无钱包也能读链上数据）
-        const readOnlyProvider = new ethers.providers.JsonRpcProvider(GIWA_SEPOLIA_RPC);
-        readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, readOnlyProvider);
-        document.getElementById('contractAddr').textContent = shortAddr(CONTRACT_ADDRESS);
-        // 立即读取一次（无钱包用户也能看到数据）
-        await refreshData();
+  }
+  document.getElementById('switchBtn').style.display = account ? 'inline-block' : 'none';
+}
 
-        // signer contract（仅在有钱包时创建）
-        if (signer) {
-          contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-          const manager = await contract.MANAGER();
-          const myAddr = await signer.getAddress();
-          isManager = myAddr.toLowerCase() === manager.toLowerCase();
-          if (isManager) document.getElementById('managerCard').style.display = 'block';
+async function loadData() {
+  try {
+    const cfg = await contract.getConfig();
+    const [_price, _max, _dur, _start, _end, _phase, _tickets, _pool] = cfg;
+    const price = Number(_price), max = Number(_max), phase = Number(_phase);
+    const tickets = Number(_tickets), pool = Number(_pool), end = Number(_end);
+    const round = Number(await contract.round());
 
-          document.getElementById('walletBtn').style.display = 'none';
-          document.getElementById('accountDisplay').style.display = 'inline';
-          document.getElementById('statusDot').className = 'status-dot connected';
-          document.getElementById('statusText').textContent = '已连接 GIWA Sepolia';
+    document.getElementById('poolAmount').textContent = fmtEth(pool);
+    document.getElementById('ticketPriceDisplay').textContent = (price/1e18).toFixed(4)+' ETH';
+    document.getElementById('maxPlayersDisplay').textContent = max;
+    document.getElementById('ticketCount').textContent = tickets + ' 张票 / ' + max + ' 人';
+    document.getElementById('roundBadge').textContent = 'Round ' + round;
+    document.getElementById('contractAddr').textContent = shortAddr(CONTRACT);
+    document.getElementById('hintPrice').textContent = (price/1e18).toFixed(4);
 
-          refreshInterval = setInterval(refreshData, 5000);
-
-          contract.on('TicketsPurchased', (p, c, a, r) => {
-            showToast(`🎟️ ${shortAddr(p)} 购买了 ${c} 张票！`, 'success');
-            refreshData();
-          });
-          contract.on('WinnersPicked', (w1,p1,w2,p2,w3,p3) => {
-            showToast('🎉 开奖完成！', 'success');
-            refreshData();
-          });
-          contract.on('PhaseChanged', (f,t) => {
-            showToast(`阶段变化: ${phaseName(f)} → ${phaseName(t)}`, 'info');
-            refreshData();
-          });
-        }
-      } catch(e) {
-        showToast('合约初始化失败: '+e.message, 'error');
-      }
-    }
-    
-    // =============================================
-    // ── RPC 直接调用 + ethers.js 解码动态数组 ──────────────────────────────
-    // 获取链上数据（无钱包也能用）
-    async function fetchChainData() {
-      const RPC = GIWA_SEPOLIA_RPC;
-      const ADDR = CONTRACT_ADDRESS;
-      const decodeUint = (hex) => hex ? parseInt(hex, 16) : 0;
-
-      // 硬编码 selectors（已验证正确）
-      const SEL = {
-        ticketPrice:      '0x1209b1f6',
-        maxPlayers:       '0x4c2412a2',
-        lotteryDuration:  '0x2d97902f',
-        startTime:        '0x78e97925',
-        endTime:          '0x3197cbb6',
-        currentPhase:     '0x055ad42e',
-        getTotalTickets:  '0x06e8337f',
-        getUniquePlayerCount: '0x91aae8f8',
-        getPrizePool:     '0x884bf67c',
-        getPlayers:       '0x8b5b9ccc',
-        getCommitProgress:'0x5dbcb739',
-        getWinners:       '0xdf15c37e',
-        round:            '0x146ca531',
-      };
-
-      // 通用 eth_call（裸 RPC，无 ABI 解码）
-      const ethCall = async (sel) => {
-        const res = await fetch(RPC, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: ADDR, data: sel }, 'latest'] })
-        });
-        const json = await res.json();
-        if (json.error) throw new Error(json.error.message);
-        return json.result;
-      };
-
-      try {
-        // 并行获取所有标量值
-        const [ticketPrice, maxPlayers, duration, startTime, endTime, phase,
-               totalTickets, uniquePlayers, prizeBalance, commitProgress] =
-        await Promise.all([
-          ethCall(SEL.ticketPrice), ethCall(SEL.maxPlayers), ethCall(SEL.lotteryDuration),
-          ethCall(SEL.startTime), ethCall(SEL.endTime), ethCall(SEL.currentPhase),
-          ethCall(SEL.getTotalTickets), ethCall(SEL.getUniquePlayerCount), ethCall(SEL.getPrizePool),
-          ethCall(SEL.getCommitProgress)
-        ]);
-
-        // round 和 getWinners 单独处理（revert 时不影响整体）
-        let roundVal = 1;
-        try { const r = await ethCall(SEL.round); roundVal = decodeUint(r) || 1; } catch {}
-
-        let winnersHex = '0x';
-        try { winnersHex = await ethCall(SEL.getWinners); } catch {}
-
-        // players 用 ethers.js JsonRpcProvider 解码（动态数组需要 ABI 解析）
-        let playersArr = [];
-        try {
-          const rp = new ethers.providers.JsonRpcProvider(RPC);
-          const iface = new ethers.utils.Interface(ABI);
-          const playersHex = await ethCall(SEL.getPlayers);
-          playersArr = iface.decodeFunctionResult('getPlayers', playersHex)[0] || [];
-          playersArr = playersArr.map(a => a.toLowerCase());
-        } catch (e) { playersArr = []; }
-
-        return {
-          ticketPrice: decodeUint(ticketPrice),
-          maxPlayers: decodeUint(maxPlayers),
-          duration: decodeUint(duration),
-          startTime: decodeUint(startTime),
-          endTime: decodeUint(endTime),
-          phase: decodeUint(phase),
-          totalTickets: decodeUint(totalTickets),
-          uniquePlayers: decodeUint(uniquePlayers),
-          prizeBalance,
-          players: playersArr,
-          winners: winnersHex,
-          commitProgress,
-          round: roundVal
-        };
-      } catch(e) {
-        console.error('fetchChainData失败:', e.message || e);
-        return null;
-      }
+    // Timer
+    if (end > 0) {
+      document.getElementById('timerDisplay').textContent = fmtTime(end);
+    } else {
+      document.getElementById('timerDisplay').textContent = '∞';
     }
 
-    // 数据刷新
-    // =============================================
-    async function refreshData() {
-      // 无钱包时用 fetch RPC，有钱包时用 ethers.Contract
-      const useRpc = !contract || !signer;
-
-      try {
-        let data;
-        if (useRpc) {
-          data = await fetchChainData();
-          if (!data) return;
-        } else {
-          // 有钱包路径：用 ethers.Contract（有钱包时正常）
-          data = await (async () => {
-            const [
-              ticketPrice, maxPlayers, duration, startTime, endTime, phase,
-              totalTickets, uniquePlayers, prizeBalance, players, winners, round
-            ] = await Promise.all([
-              contract.ticketPrice(), contract.maxPlayers(), contract.lotteryDuration(),
-              contract.startTime(), contract.endTime(), contract.currentPhase(),
-              contract.getTotalTickets(), contract.getUniquePlayerCount(), contract.getPrizePool(),
-              contract.getPlayers(), contract.getWinners(), contract.round()
-            ]);
-            const commitProgress = await contract.getCommitProgress();
-            return {
-              ticketPrice, maxPlayers, duration, startTime, endTime, phase,
-              totalTickets, uniquePlayers, prizeBalance, players, winners, commitProgress, round
-            };
-          })();
-        }
-
-        const d = useRpc ? data : {
-          ticketPrice: data.ticketPrice,
-          maxPlayers: data.maxPlayers,
-          duration: data.duration,
-          startTime: data.startTime,
-          endTime: data.endTime,
-          phase: data.phase,
-          totalTickets: data.totalTickets,
-          uniquePlayers: data.uniquePlayers,
-          prizeBalance: data.prizeBalance,
-          players: data.players,
-          winners: data.winners,
-          commitProgress: data.commitProgress,
-          round: data.round
-        };
-
-        // 统一处理
-        const phase = useRpc ? d.phase : parseInt(d.phase);
-        const poolEth = useRpc
-          ? parseFloat(ethers.utils.formatEther(d.prizeBalance || '0'))
-          : parseFloat(ethers.utils.formatEther(d.prizeBalance));
-        const priceEth = useRpc
-          ? parseFloat(ethers.utils.formatEther(ethers.BigNumber.from(d.ticketPrice)))
-          : parseFloat(ethers.utils.formatEther(d.ticketPrice));
-
-        currentPhase = phase;
-
-        document.getElementById('prizePool').textContent = poolEth.toFixed(4);
-        document.getElementById('playerCount').textContent = d.uniquePlayers.toString();
-        document.getElementById('roundNum').textContent = d.round.toString();
-        document.getElementById('ticketPriceDisplay').textContent = priceEth.toFixed(6)+' ETH';
-        document.getElementById('totalTicketsDisplay').textContent = d.totalTickets.toString()+' 张';
-        document.getElementById('costDisplay').textContent = priceEth.toFixed(6);
-        document.getElementById('totalCostDisplay').textContent =
-          (priceEth * (parseInt(document.getElementById('ticketCountInput').value) || 1)).toFixed(6);
-
-        // 触发条件
-        if (d.maxPlayers > 0) {
-          document.getElementById('thresholdDisplay').textContent =
-            `${d.uniquePlayers}/${d.maxPlayers}人`;
-        } else if (d.duration > 0) {
-          document.getElementById('thresholdDisplay').textContent = '定时';
-        } else {
-          document.getElementById('thresholdDisplay').textContent = '手动';
-        }
-
-        // 奖池预览
-        const distributable = poolEth * (1 - 1000/10000); // 10% 管理员费
-        document.getElementById('p1Eth').textContent = (distributable*0.5).toFixed(4)+' ETH';
-        document.getElementById('p2Eth').textContent = (distributable*0.25).toFixed(4)+' ETH';
-        document.getElementById('p3Eth').textContent = (distributable*0.15).toFixed(4)+' ETH';
-
-        updatePhaseBanner(phase);
-        updatePhaseUI(phase);
-
-        // Timer
-        if (phase === 0 && d.duration > 0 && d.endTime > 0) {
-          document.getElementById('timerSection').style.display = 'block';
-          startTimer(d.endTime);
-        } else {
-          document.getElementById('timerSection').style.display = 'none';
-          if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-        }
-
-        // Winners
-        const winnersData = useRpc ? decodeWinners(d.winners) : d.winners;
-        const [winnersArr, amountsArr] = winnersData;
-        const w0 = useRpc ? winnersArr[0] : winnersArr[0];
-        if (w0 && w0 !== '0x0000000000000000000000000000000000000000') {
-          document.getElementById('winnersCard').style.display = 'block';
-          const amt0 = useRpc ? amountsArr[0] : amountsArr[0];
-          const amt1 = useRpc ? (amountsArr[1] || 0n) : amountsArr[1];
-          const amt2 = useRpc ? (amountsArr[2] || 0n) : amountsArr[2];
-          const fmt = (a) => parseFloat(ethers.utils.formatEther(useRpc ? a : a)).toFixed(4);
-          document.getElementById('w1Addr').textContent = w0;
-          document.getElementById('w1Amt').textContent = fmt(amt0)+' ETH';
-          document.getElementById('w2Addr').textContent = winnersArr[1] || '-';
-          document.getElementById('w2Amt').textContent = winnersArr[1] ? fmt(amt1)+' ETH' : '-';
-          document.getElementById('w3Addr').textContent = winnersArr[2] || '-';
-          document.getElementById('w3Amt').textContent = winnersArr[2] ? fmt(amt2)+' ETH' : '-';
-        } else {
-          document.getElementById('winnersCard').style.display = 'none';
-        }
-
-        // Players
-        const playersData = useRpc
-          ? (Array.isArray(d.players) ? d.players : decodeAddressArray(d.players))
-          : d.players;
-        document.getElementById('playerListCount').textContent =
-          `(${d.uniquePlayers}人/${d.totalTickets}张)`;
-        const listEl = document.getElementById('playerList');
-        if (playersData.length === 0) {
-          listEl.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px">暂无参与者</div>';
-        } else {
-          const addrMap = {};
-          for (const p of playersData) addrMap[p] = (addrMap[p] || 0) + 1;
-          const sorted = Object.entries(addrMap).sort((a,b) => b[1]-a[1]);
-          listEl.innerHTML = sorted.slice(0,20).map(([p,cnt],i) => `
-            <div class="player-item">
-              <span class="idx">#${i+1}</span>
-              <span class="addr">${p}</span>
-              <span style="color:var(--accent);font-size:12px">${cnt}张</span>
-            </div>
-          `).join('');
-        }
-
-        // Commit progress
-        if (phase === 1 || phase === 2) {
-          document.getElementById('commitStatusCard').style.display = 'block';
-          const cpData = useRpc ? decodeCommitProgress(d.commitProgress) : d.commitProgress;
-          const [comm, total] = Array.isArray(cpData) ? cpData : [0, 0];
-          document.getElementById('commitCount').textContent = `${comm} / ${total}`;
-          document.getElementById('commitRemaining').textContent = total - comm;
-          const pct = total > 0 ? (comm / total * 100) : 0;
-          document.getElementById('commitProgress').innerHTML = `
-            <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px">
-              <div style="height:6px;width:${pct}%;background:var(--warning);border-radius:3px;transition:width 0.3s"></div>
-            </div>`;
-        } else {
-          document.getElementById('commitStatusCard').style.display = 'none';
-        }
-
-        // 我的票数（有钱包时查，无钱包跳过）
-        if (contract && signer) {
-          try {
-            const addr = await signer.getAddress();
-            const myTickets = await contract.getTicketCount(addr);
-            document.getElementById('myTicketCount').textContent = myTickets.toString()+' 张';
-            // 调试：写入 DOM 属性备查
-            document.getElementById('myTicketCount').dataset.addr = addr;
-          } catch(e) {
-            console.error('getTicketCount失败:', e.message || e);
-            document.getElementById('myTicketCount').textContent = '? 张('+(e.reason||e.code||'error').toString().slice(0,20)+')';
-          }
-        }
-
-      } catch(e) {
-        console.error('刷新失败:', e.message || e);
-      }
-    }
-    
-    function phaseName(p) {
-      return ['开放参与','承诺提交','揭示开奖','已完成'][p] || p;
-    }
-    
-    function updatePhaseBanner(phase) {
-      const banner = document.getElementById('phaseBanner');
-      const text = document.getElementById('phaseText');
-      const classes = ['phase-entry','phase-commit','phase-reveal','phase-complete'];
-      const msgs = ['🎟️ 开放参与中','🔐 等待提交承诺','🔓 揭示随机数中','🎉 本轮已完成'];
-      banner.className = 'phase-banner '+classes[phase];
-      text.textContent = msgs[phase] || phase;
-    }
-    
-    function updatePhaseUI(phase) {
-      document.getElementById('entrySection').style.display = phase === 0 ? 'block' : 'none';
-      document.getElementById('commitSection').style.display = phase === 1 ? 'block' : 'none';
-      document.getElementById('revealSection').style.display = phase === 2 ? 'block' : 'none';
-      document.getElementById('commitHint').style.display = phase === 1 ? 'block' : 'none';
-    }
-    
-    function startTimer(endTime) {
-      if (timerInterval) clearInterval(timerInterval);
-      const tick = () => {
-        const now = Math.floor(Date.now()/1000);
-        const remain = endTime - now;
-        if (remain <= 0) {
-          document.getElementById('countdownDisplay').textContent = '00:00:00';
-          refreshData();
-          return;
-        }
-        const h = String(Math.floor(remain/3600)).padStart(2,'0');
-        const m = String(Math.floor((remain%3600)/60)).padStart(2,'0');
-        const s = String(remain%60).padStart(2,'0');
-        document.getElementById('countdownDisplay').textContent = `${h}:${m}:${s}`;
-      };
-      tick();
-      timerInterval = setInterval(tick, 1000);
-    }
-    
-    // =============================================
-    // 操作
-    // =============================================
-    // =============================================
-    // 购票
-    // =============================================
-    async function buyTickets() {
-      if (!contract) { showToast('请先连接钱包','error'); return; }
-      const count = parseInt(document.getElementById('ticketCountInput').value) || 1;
-      if (count < 1 || count > 50) { showToast('票数需在 1-50 之间','error'); return; }
-      const btn = document.getElementById('enterBtn');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 处理中...';
-      try {
-        // 获取当前票价
-        const price = await contract.ticketPrice();
-        const totalCost = price.mul(count);
-        const tx = await contract.buyTickets(count, { value: totalCost });
-        showToast('交易已发送...','info');
-        await tx.wait();
-        showToast(`✅ 成功购买 ${count} 张票！`,'success');
-        await refreshData();
-      } catch(e) {
-        console.error('买票失败完整错误:', JSON.stringify(e, null, 2));
-        let msg = e.reason || e.message || '';
-        if (!msg) {
-          // 尝试从 error.data 或 error.data.message 提取
-          msg = e.data?.message || e.error?.message || e.error?.reason || '';
-        }
-        if (!msg && e.code) msg = `code=${e.code}`;
-        if (msg.includes('user rejected') || msg.includes('Rejected') || e.code === 4001)
-          msg = '交易已取消';
-        else if (msg.includes('insufficient funds') || msg.includes('insufficient'))
-          msg = 'ETH 余额不足';
-        else if (!msg)
-          msg = 'Transaction failed (请确认 MetaMask 已弹出并点确认)';
-        showToast('购买失败: ' + msg, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '🎟️ 购买奖券';
-      }
-    }
-    
-    async function enterLottery() { buyTickets(); }
-
-    // =============================================
-    // Commit（多票批量）
-    // =============================================
-    async function submitCommitment() {
-      const input = document.getElementById('commitInput').value.trim();
-      if (!input) { showToast('请输入随机字符串','error'); return; }
-      const btn = document.getElementById('commitBtn');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 计算哈希...';
-      try {
-        const addr = await signer.getAddress();
-        const indices = await contract.getMyTicketIndices(addr);
-        if (indices.length === 0) { showToast('你没有票','error'); btn.disabled = false; btn.innerHTML = '🔐 提交承诺'; return; }
-        const hashes = [];
-        for (const idx of indices) {
-          const hash = ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(['uint256','address','uint256'], [input, addr, idx])
-          );
-          hashes.push(hash);
-        }
-        btn.innerHTML = '<span class="spinner"></span> 发送交易...';
-        const tx = await contract.commitTicketsBatch(indices, hashes);
-        await tx.wait();
-        showToast(`✅ 承诺已提交！请<strong>保留随机字符串</strong>（你共${indices.length}张票）`,'success');
-        document.getElementById('commitInput').disabled = true;
-        btn.disabled = true;
-        btn.textContent = `✅ 已提交 ${indices.length} 张票`;
-        myRandomness = input;
-        await refreshData();
-      } catch(e) {
-        showToast('提交失败: '+(e.reason||e.message),'error');
-        btn.disabled = false; btn.innerHTML = '🔐 提交承诺';
-      }
+    // Phase UI
+    const banner = document.getElementById('phaseBanner');
+    if (phase === PHASE_ENTRY) {
+      banner.className = 'phase-banner phase-entry';
+      banner.textContent = '🛒 购票中';
+      document.getElementById('buySection').style.display = 'block';
+      document.getElementById('drawSection').style.display = 'none';
+    } else if (phase === PHASE_DRAW) {
+      banner.className = 'phase-banner phase-draw';
+      banner.textContent = '🎰 开奖中';
+      document.getElementById('buySection').style.display = 'none';
+      document.getElementById('drawSection').style.display = 'block';
+      document.getElementById('winnerSection').style.display = 'none';
     }
 
-    async function revealRandomness() {
-      const input = document.getElementById('revealInput').value.trim();
-      if (!input) { showToast('请输入原始随机字符串','error'); return; }
-      const btn = document.getElementById('revealBtn');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 验证并揭示...';
-      try {
-        const addr = await signer.getAddress();
-        const indices = await contract.getMyTicketIndices(addr);
-        if (indices.length === 0) { showToast('你没有票','error'); btn.disabled = false; btn.innerHTML = '🔓 揭示'; return; }
-        const tx = await contract.revealTicketsBatch(indices, indices.map(() => input));
-        await tx.wait();
-        showToast('✅ 随机数已揭示！','success');
-        document.getElementById('revealInput').disabled = true;
-        btn.disabled = true;
-        btn.textContent = `✅ 已揭示 ${indices.length} 张票`;
-        await refreshData();
-      } catch(e) {
-        showToast('揭示失败: '+(e.reason||e.message),'error');
-        btn.disabled = false; btn.innerHTML = '🔓 揭示';
-      }
-    }
-
-    async function revealAndDraw() {
-      const btn = document.getElementById('drawBtn');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 开奖中...';
-      try {
-        const tx = await contract.draw();
-        showToast('开奖交易已发送...','info');
-        await tx.wait();
-        showToast('🎉 开奖完成！','success');
-        await refreshData();
-      } catch(e) {
-        showToast('开奖失败: '+(e.reason||e.message),'error');
-      } finally {
-        btn.disabled = false; btn.innerHTML = '🎲 开奖';
-      }
-    }
-
-    // Manager functions
-    async function configureLottery() {
-      const price = parseFloat(document.getElementById('cfgTicketPrice').value);
-      const max = parseInt(document.getElementById('cfgMaxPlayers').value) || 0;
-      const dur = parseInt(document.getElementById('cfgDuration').value) || 0;
-      const feeBp = parseInt(document.getElementById('cfgFeeBp').value) || 1000;
-      if (!price || price <= 0) { showToast('请输入有效票价','error'); return; }
-      try {
-        const tx = await contract.configure(
-          ethers.utils.parseEther(price.toString()), max, dur, feeBp
-        );
-        await tx.wait();
-        showToast('✅ 配置已更新','success');
-        await refreshData();
-      } catch(e) { showToast('配置失败: '+(e.reason||e.message),'error'); }
-    }
-
-    async function forceStartCommit() {
-      try {
-        const tx = await contract.forceStartCommit();
-        await tx.wait();
-        showToast('已强制进入承诺阶段','info');
-        await refreshData();
-      } catch(e) { showToast('操作失败: '+(e.reason||e.message),'error'); }
-    }
-
-    async function forceDraw() {
-      if (!confirm('确定强制开奖？')) return;
-      try {
-        const tx = await contract.forceDraw();
-        await tx.wait();
-        showToast('强制开奖完成','info');
-        await refreshData();
-      } catch(e) { showToast('操作失败: '+(e.reason||e.message),'error'); }
-    }
-
-    async function cancelRound() {
-      if (!confirm('确定取消本轮并退款？')) return;
-      try {
-        const tx = await contract.cancelRound();
-        await tx.wait();
-        showToast('本轮已取消','info');
-        await refreshData();
-      } catch(e) { showToast('操作失败: '+(e.reason||e.message),'error'); }
-    }
-    
-    // =============================================
-    // ABI (部署后自动填充)
-    // =============================================
-    let ABI = [{"inputs": [], "stateMutability": "nonpayable", "type": "constructor"}, {"inputs": [], "name": "AlreadyCommitted", "type": "error"}, {"inputs": [], "name": "InsufficientPayment", "type": "error"}, {"inputs": [], "name": "InvalidConfig", "type": "error"}, {"inputs": [], "name": "InvalidTicketIndex", "type": "error"}, {"inputs": [], "name": "NoPlayers", "type": "error"}, {"inputs": [], "name": "NotAllCommitted", "type": "error"}, {"inputs": [], "name": "NotYetCommitted", "type": "error"}, {"inputs": [], "name": "OnlyManager", "type": "error"}, {"inputs": [], "name": "TransferFailed", "type": "error"}, {"inputs": [{"internalType": "uint8", "name": "cur", "type": "uint8"}, {"internalType": "uint8", "name": "exp", "type": "uint8"}], "name": "WrongPhase", "type": "error"}, {"inputs": [], "name": "ZeroAddress", "type": "error"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "player", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "ticketIndex", "type": "uint256"}], "name": "CommitmentSubmitted", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "uint256", "name": "newRound", "type": "uint256"}], "name": "LotteryReset", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "oldMgr", "type": "address"}, {"indexed": true, "internalType": "address", "name": "newMgr", "type": "address"}], "name": "ManagerUpdated", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "uint8", "name": "from", "type": "uint8"}, {"indexed": true, "internalType": "uint8", "name": "to", "type": "uint8"}], "name": "PhaseChanged", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "uint256", "name": "count", "type": "uint256"}], "name": "ThresholdReached", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "player", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "count", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "round", "type": "uint256"}], "name": "TicketsPurchased", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "uint256", "name": "endTime", "type": "uint256"}], "name": "TimerExpired", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "address", "name": "w1", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "p1", "type": "uint256"}, {"indexed": false, "internalType": "address", "name": "w2", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "p2", "type": "uint256"}, {"indexed": false, "internalType": "address", "name": "w3", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "p3", "type": "uint256"}], "name": "WinnersPicked", "type": "event"}, {"inputs": [], "name": "MANAGER", "outputs": [{"internalType": "address", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "_count", "type": "uint256"}], "name": "buyTickets", "outputs": [], "stateMutability": "payable", "type": "function"}, {"inputs": [], "name": "cancelRound", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "checkTimerExpiry", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "claimManager", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "_idx", "type": "uint256"}, {"internalType": "bytes32", "name": "_hash", "type": "bytes32"}], "name": "commitTicket", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256[]", "name": "_idxs", "type": "uint256[]"}, {"internalType": "bytes32[]", "name": "_hashes", "type": "bytes32[]"}], "name": "commitTicketsBatch", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "_price", "type": "uint256"}, {"internalType": "uint256", "name": "_max", "type": "uint256"}, {"internalType": "uint256", "name": "_dur", "type": "uint256"}], "name": "configure", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "currentPhase", "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "draw", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "address payable", "name": "_to", "type": "address"}], "name": "emergencyWithdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "endTime", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "enter", "outputs": [], "stateMutability": "payable", "type": "function"}, {"inputs": [], "name": "forceCancelCommit", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "forceDraw", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "forceStartCommit", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "getCommitProgress", "outputs": [{"internalType": "uint256", "name": "c", "type": "uint256"}, {"internalType": "uint256", "name": "t", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "getConfig", "outputs": [{"internalType": "uint256", "name": "_ticketPrice", "type": "uint256"}, {"internalType": "uint256", "name": "_maxPlayers", "type": "uint256"}, {"internalType": "uint256", "name": "_duration", "type": "uint256"}, {"internalType": "uint256", "name": "_startTime", "type": "uint256"}, {"internalType": "uint256", "name": "_endTime", "type": "uint256"}, {"internalType": "uint8", "name": "_phase", "type": "uint8"}, {"internalType": "uint256", "name": "_totalTickets", "type": "uint256"}, {"internalType": "uint256", "name": "_uniquePlayers", "type": "uint256"}, {"internalType": "uint256", "name": "_prizePool", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "_p", "type": "address"}], "name": "getMyTicketIndices", "outputs": [{"internalType": "uint256[]", "name": "", "type": "uint256[]"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "getPlayers", "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "getPrizePool", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "_p", "type": "address"}], "name": "getTicketCount", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "getTotalTickets", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "getUniquePlayerCount", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "_p", "type": "address"}, {"internalType": "uint256", "name": "_i", "type": "uint256"}], "name": "hasCommitted", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "lotteryDuration", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "maxPlayers", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "pendingManager", "outputs": [{"internalType": "address", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "name": "players", "outputs": [{"internalType": "address", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "prizePool", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "_idx", "type": "uint256"}, {"internalType": "uint256", "name": "_rnd", "type": "uint256"}], "name": "revealTicket", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256[]", "name": "_idxs", "type": "uint256[]"}, {"internalType": "uint256[]", "name": "_rnds", "type": "uint256[]"}], "name": "revealTicketsBatch", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "round", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "startTime", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}], "name": "ticketCommitments", "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "", "type": "address"}], "name": "ticketCount", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "ticketPrice", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}], "name": "ticketRevealed", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "totalCommits", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "_new", "type": "address"}], "name": "transferManager", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "uniquePlayerCount", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"stateMutability": "payable", "type": "receive"}];
-    
-    window.addEventListener('load', async () => {
-      if (CONTRACT_ADDRESS && typeof ABI !== 'undefined' && ABI.length > 0) {
-        if (window.ethereum) {
-          const accs = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accs.length > 0) await connectWallet();
-          else await initContract(); // 无钱包时也初始化只读 contract
-        } else {
-          await initContract(); // 无钱包扩展时也初始化只读 contract
-        }
-      }
+    // Players list
+    const players = await contract.getPlayers();
+    document.getElementById('playersCount').textContent = players.length;
+    const list = document.getElementById('playersList');
+    list.innerHTML = '';
+    const addrCount = {};
+    players.forEach(p => addrCount[p] = (addrCount[p]||0)+1);
+    Object.entries(addrCount).forEach(([p, cnt]) => {
+      const div = document.createElement('div');
+      div.className = 'player-item';
+      div.innerHTML = `<span class="addr">${shortAddr(p)}</span><span class="tickets">${cnt} 张</span>`;
+      list.appendChild(div);
     });
-    
-    window.connectWallet = connectWallet;
-  </script>
+
+    // Check timer expiry automatically
+    if (phase === PHASE_ENTRY && end > 0 && Math.floor(Date.now()/1000) >= end) {
+      try {
+        const tx = await contract.checkTimerExpiry();
+        await tx.wait();
+        showToast('定时开奖已触发');
+      } catch(e) {}
+    }
+
+    // Update buy hint
+    const cnt = parseInt(document.getElementById('ticketCountInput').value)||1;
+    document.getElementById('hintCount').textContent = cnt;
+    document.getElementById('hintTotal').textContent = ((price/1e18)*cnt).toFixed(4);
+
+  } catch(e) { console.error('loadData error', e); }
+}
+
+async function buyTickets() {
+  const btn = document.getElementById('buyBtn');
+  const cnt = parseInt(document.getElementById('ticketCountInput').value)||1;
+  btn.disabled = true; btn.textContent = '处理中...';
+  try {
+    const price = await contract.ticketPrice();
+    const cost = price.mul(cnt);
+    const tx = await contract.buyTickets(cnt, {value: cost});
+    await tx.wait();
+    showToast('购买成功！');
+    await loadData();
+  } catch(e) {
+    showToast('购买失败: '+(e.code||'error'));
+  }
+  btn.disabled = false; btn.textContent = '购买抽奖券';
+}
+
+async function triggerDraw() {
+  const btn = document.getElementById('triggerDrawBtn');
+  btn.disabled = true; btn.textContent = '开奖中...';
+  try {
+    const tx = await contract.triggerDraw();
+    await tx.wait();
+    showToast('开奖完成！');
+    await loadData();
+  } catch(e) {
+    showToast('开奖失败: '+(e.code||'error'));
+    btn.disabled = false; btn.textContent = '🎰 触发开奖';
+  }
+}
+
+// Listen for winners
+if (contract) {
+  contract.on('WinnersPicked', (w1,p1,w2,p2,w3,p3) => {
+    document.getElementById('winnerSection').style.display = 'block';
+    document.getElementById('winner1Addr').textContent = shortAddr(w1);
+    document.getElementById('winner1Amount').textContent = fmtEth(p1);
+    document.getElementById('winner2Addr').textContent = shortAddr(w2);
+    document.getElementById('winner2Amount').textContent = fmtEth(p2);
+    document.getElementById('winner3Addr').textContent = shortAddr(w3);
+    document.getElementById('winner3Amount').textContent = fmtEth(p3);
+    document.getElementById('phaseBanner').className = 'phase-banner phase-complete';
+    document.getElementById('phaseBanner').textContent = '✅ 开奖完成';
+    document.getElementById('drawSection').style.display = 'none';
+    showToast('🎉 开奖完成！');
+  });
+
+  contract.on('LotteryReset', (newRound) => {
+    document.getElementById('winnerSection').style.display = 'none';
+    loadData();
+  });
+}
+
+// ticket count input update
+document.getElementById('ticketCountInput').addEventListener('input', async () => {
+  try {
+    const price = await contract.ticketPrice();
+    const cnt = parseInt(document.getElementById('ticketCountInput').value)||1;
+    document.getElementById('hintCount').textContent = cnt;
+    document.getElementById('hintTotal').textContent = ((Number(price)/1e18)*cnt).toFixed(4);
+  } catch(e) {}
+});
+
+// auto-refresh timer
+setInterval(() => {
+  const t = document.getElementById('timerDisplay');
+  if (t.textContent && t.textContent !== '--:--:--') {
+    const parts = t.textContent.split(':');
+    if (parts.length===3) {
+      let s = parseInt(parts[0])*3600+parseInt(parts[1])*60+parseInt(parts[2]);
+      s = Math.max(0, s-1);
+      t.textContent = String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    }
+  }
+}, 1000);
+
+window.addEventListener('load', () => {
+  if (window.ethereum) {
+    connectWallet();
+  }
+});
+</script>
 </body>
 </html>
