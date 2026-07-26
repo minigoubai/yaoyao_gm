@@ -40,17 +40,23 @@ contract GiwaLotteryV4 {
     address[] public players;
     mapping(address => uint256) public ticketCount;
 
-    // 历史开奖记录（_reset 时保存）
-    uint256 public lastRound;
-    uint256 public lastPrizePool;
-    uint256 public lastWinnerIdx1;
-    uint256 public lastWinnerIdx2;
-    uint256 public lastWinnerIdx3;
-    uint256   public lastDrawBlockNumber;
-    bytes32   public lastDrawBlockHash;
-    uint256   public lastFee;         // 管理费金额
-    uint256   public lastDistAmount;  // 分发总额（去掉管理费）
-
+    // 历史开奖记录（存最近10期）
+    uint256 public totalRounds; // 累计开奖期数
+    struct RoundInfo {
+        uint256 round;
+        uint256 prizePool;
+        uint256 fee;
+        uint256 distAmount;
+        uint256 drawBlockNumber;
+        bytes32 drawBlockHash;
+        bytes32 drawTxHash;
+        uint256 playerCount;
+        address winner1;
+        address winner2;
+        address winner3;
+    }
+    RoundInfo[10] public recentRounds; // 循环数组，最新在 index 0
+    uint256 private roundRingIndex;    // 当前写入位置（0-9）
     event PhaseChanged(uint8 indexed from, uint8 indexed to);
     event TicketsPurchased(address indexed player, uint256 count, uint256 amount, uint256 round);
     event WinnersPicked(address w1, uint256 p1, address w2, uint256 p2, address w3, uint256 p3);
@@ -210,16 +216,23 @@ contract GiwaLotteryV4 {
 
         if (fee > 0) _safeTransfer(payable(MANAGER), fee);
 
-        lastFee = fee;
-        lastDistAmount = dist;
-        lastDrawBlockNumber = drawBlockNumber;
-        lastDrawBlockHash = drawBlockHash;
-        // lastDrawTxHash 在 triggerDraw 交易回执中获取，触发后手动写入
-        lastRound = round;
-        lastPrizePool = pool;
-        lastWinnerIdx1 = sel[0];
-        lastWinnerIdx2 = sel[1];
-        lastWinnerIdx3 = sel[2];
+        // 保存到最近10期循环数组
+        totalRounds++;
+        uint256 idx = roundRingIndex;
+        recentRounds[idx] = RoundInfo({
+            round: round,
+            prizePool: pool,
+            fee: fee,
+            distAmount: dist,
+            drawBlockNumber: drawBlockNumber,
+            drawBlockHash: drawBlockHash,
+            drawTxHash: lastDrawTxHash,
+            playerCount: n,
+            winner1: w1,
+            winner2: w2,
+            winner3: w3
+        });
+        roundRingIndex = (idx + 1) % 10;
 
         emit WinnersPicked(w1,
             w1 == w2 && w1 == w3 ? dist : (dist * FIRST_PRIZE_BP) / BASIS_POINTS,
@@ -251,7 +264,7 @@ contract GiwaLotteryV4 {
         endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
         drawBlockHash = 0x0;
         drawBlockNumber = 0;
-        lastDrawTxHash = 0x0; // 重置，为下一轮做准备
+        lastDrawTxHash = 0x0;
         emit LotteryReset(round);
     }
 
@@ -277,16 +290,29 @@ contract GiwaLotteryV4 {
     function getPrizePool() external view returns (uint256) { return address(this).balance; }
     function getPlayers() external view returns (address[] memory) { return players; }
     function getTotalTickets() external view returns (uint256) { return players.length; }
-    function getLastWinners() external view returns (
-        uint256 _round, uint256 _prizePool, uint256 _fee, uint256 _distAmount,
-        uint256 _drawBlockNumber, bytes32 _drawBlockHash, bytes32 _drawTxHash,
-        uint256 _idx1, uint256 _idx2, uint256 _idx3, uint256 _totalPlayers
+
+    function getRecentRounds() external view returns (
+        uint256[10] memory rounds,
+        uint256[10] memory pools,
+        uint256[10] memory fees,
+        uint256[10] memory playerCounts,
+        address[10] memory winners1,
+        address[10] memory winners2,
+        address[10] memory winners3,
+        uint256 total
     ) {
-        return (
-            lastRound, lastPrizePool, lastFee, lastDistAmount,
-            lastDrawBlockNumber, lastDrawBlockHash, lastDrawTxHash,
-            lastWinnerIdx1, lastWinnerIdx2, lastWinnerIdx3, players.length
-        );
+        total = totalRounds;
+        for (uint256 i = 0; i < 10; i++) {
+            uint256 slot = (roundRingIndex + i + 10) % 10;
+            RoundInfo storage r = recentRounds[slot];
+            rounds[i] = r.round;
+            pools[i] = r.prizePool;
+            fees[i] = r.fee;
+            playerCounts[i] = r.playerCount;
+            winners1[i] = r.winner1;
+            winners2[i] = r.winner2;
+            winners3[i] = r.winner3;
+        }
     }
 
     function getPrizeDistribution() external pure returns (uint256 first, uint256 second, uint256 third, uint256 managerFee) {
