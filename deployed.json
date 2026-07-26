@@ -1,7 +1,7 @@
 {
   "network": "giwa-sepolia",
   "chainId": 91342,
-  "contractAddress": "0xf5418b73CeA7E43F8485ECa0f795E62F8aCAb69c",
+  "contractAddress": "0x3f4d07B2D4006fA08dBEA182C3CEfe2eaD7fB4A4",
   "manager": "0xC43943A9FFe891e175cb21190e642831e6403259",
   "blockNumber": 31645552,
   "transactionHash": "0x40ea188c836f11d2045c796a40b7db371e052825328e6cefc91a24f3ca990755",
