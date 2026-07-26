@@ -237,14 +237,24 @@ async function loadDataRO() {
     document.getElementById('roundBadge').textContent = 'Round ' + round;
     document.getElementById('contractAddr').textContent = shortAddr(CONTRACT);
     document.getElementById('hintPrice').textContent = (Number(_price)/1e18).toFixed(4);
-    document.getElementById('timerDisplay').textContent = end > 0 ? fmtTime(end) : '∞';
+    const nowSec = Math.floor(Date.now()/1000);
+    document.getElementById('timerDisplay').textContent = end > 0 ? (nowSec >= end ? '已到期' : fmtTime(end)) : '∞';
 
     const banner = document.getElementById('phaseBanner');
     if (phase === PHASE_ENTRY) {
-      banner.className = 'phase-banner phase-entry';
-      banner.textContent = '🛒 购票中';
-      document.getElementById('buySection').style.display = 'block';
-      document.getElementById('drawSection').style.display = 'none';
+      if (end > 0 && nowSec >= end) {
+        banner.className = 'phase-banner phase-draw';
+        banner.textContent = '⏰ 时间已到，等待开奖';
+        document.getElementById('buySection').style.display = 'none';
+        document.getElementById('drawSection').style.display = 'block';
+        document.getElementById('triggerDrawBtn').textContent = '⏰ 时间已到，请连接钱包触发';
+        document.getElementById('triggerDrawBtn').disabled = true;
+      } else {
+        banner.className = 'phase-banner phase-entry';
+        banner.textContent = '🛒 购票中';
+        document.getElementById('buySection').style.display = 'block';
+        document.getElementById('drawSection').style.display = 'none';
+      }
     } else if (phase === PHASE_DRAW) {
       banner.className = 'phase-banner phase-draw';
       banner.textContent = '🎰 开奖中';
@@ -286,18 +296,32 @@ async function loadData() {
 
     // Timer
     if (end > 0) {
-      document.getElementById('timerDisplay').textContent = fmtTime(end);
+      if (Math.floor(Date.now()/1000) >= end) {
+        document.getElementById('timerDisplay').textContent = '已到期';
+      } else {
+        document.getElementById('timerDisplay').textContent = fmtTime(end);
+      }
     } else {
       document.getElementById('timerDisplay').textContent = '∞';
     }
 
     // Phase UI
+    const nowSec = Math.floor(Date.now()/1000);
     const banner = document.getElementById('phaseBanner');
     if (phase === PHASE_ENTRY) {
-      banner.className = 'phase-banner phase-entry';
-      banner.textContent = '🛒 购票中';
-      document.getElementById('buySection').style.display = 'block';
-      document.getElementById('drawSection').style.display = 'none';
+      if (end > 0 && nowSec >= end) {
+        banner.className = 'phase-banner phase-draw';
+        banner.textContent = '⏰ 时间已到，等待开奖';
+        document.getElementById('buySection').style.display = 'none';
+        document.getElementById('drawSection').style.display = 'block';
+        document.getElementById('triggerDrawBtn').disabled = false;
+        document.getElementById('triggerDrawBtn').textContent = '🎰 触发开奖';
+      } else {
+        banner.className = 'phase-banner phase-entry';
+        banner.textContent = '🛒 购票中';
+        document.getElementById('buySection').style.display = 'block';
+        document.getElementById('drawSection').style.display = 'none';
+      }
     } else if (phase === PHASE_DRAW) {
       banner.className = 'phase-banner phase-draw';
       banner.textContent = '🎰 开奖中';
