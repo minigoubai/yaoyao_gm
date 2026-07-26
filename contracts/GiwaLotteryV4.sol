@@ -35,6 +35,13 @@ contract GiwaLotteryV4 {
     address[] public players;
     mapping(address => uint256) public ticketCount;
 
+    // 历史开奖记录（_reset 时保存）
+    uint256 public lastRound;
+    uint256 public lastPrizePool;
+    uint256 public lastWinnerIdx1;
+    uint256 public lastWinnerIdx2;
+    uint256 public lastWinnerIdx3;
+
     event PhaseChanged(uint8 indexed from, uint8 indexed to);
     event TicketsPurchased(address indexed player, uint256 count, uint256 amount, uint256 round);
     event WinnersPicked(address w1, uint256 p1, address w2, uint256 p2, address w3, uint256 p3);
@@ -50,7 +57,10 @@ contract GiwaLotteryV4 {
         round = 1;
         currentPhase = PHASE_ENTRY;
         ticketPrice = 0.001 ether;
+        maxPlayers = 50;
+        lotteryDuration = 3600;
         startTime = block.timestamp;
+        endTime = block.timestamp + 3600; // 初始化默认值，真正全自动
     }
 
     receive() external payable {}
@@ -94,7 +104,7 @@ contract GiwaLotteryV4 {
         }
     }
 
-    function triggerDraw() external atPhase(PHASE_DRAW) {
+    function triggerDraw() external onlyManager atPhase(PHASE_DRAW) {
         _drawAndDistribute();
     }
 
@@ -104,7 +114,7 @@ contract GiwaLotteryV4 {
         maxPlayers = _max;
         lotteryDuration = _dur;
         startTime = block.timestamp;
-        endTime = _dur > 0 ? block.timestamp + _dur : 0;
+        endTime = _dur > 0 ? block.timestamp + _dur : block.timestamp + 3600;
     }
 
     function forceDraw() external onlyManager atPhase(PHASE_DRAW) {
@@ -186,6 +196,13 @@ contract GiwaLotteryV4 {
 
         if (fee > 0) _safeTransfer(payable(MANAGER), fee);
 
+        // 保存历史开奖记录（用索引，_reset 时 players 还没被清空）
+        lastRound = round;
+        lastPrizePool = pool;
+        lastWinnerIdx1 = sel[0];
+        lastWinnerIdx2 = sel[1];
+        lastWinnerIdx3 = sel[2];
+
         emit WinnersPicked(w1,
             w1 == w2 && w1 == w3 ? dist : (dist * FIRST_PRIZE_BP) / BASIS_POINTS,
             w2,
@@ -213,7 +230,7 @@ contract GiwaLotteryV4 {
         round++;
         currentPhase = PHASE_ENTRY;
         startTime = block.timestamp;
-        endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : 0;
+        endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
         emit LotteryReset(round);
     }
 
@@ -239,6 +256,10 @@ contract GiwaLotteryV4 {
     function getPrizePool() external view returns (uint256) { return address(this).balance; }
     function getPlayers() external view returns (address[] memory) { return players; }
     function getTotalTickets() external view returns (uint256) { return players.length; }
+    function getLastWinners() external view returns (uint256, uint256, uint256, uint256, uint256, uint256) {
+        // 返回上一轮的中奖者索引和奖池金额（前端从 players[] 解析地址）
+        return (lastRound, lastPrizePool, lastWinnerIdx1, lastWinnerIdx2, lastWinnerIdx3, players.length);
+    }
 
     function getConfig() external view returns (
         uint256 _ticketPrice, uint256 _maxPlayers, uint256 _duration,
