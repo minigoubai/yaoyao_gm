@@ -55,7 +55,7 @@ contract GiwaLotteryV4 {
         address winner2;
         address winner3;
     }
-    RoundInfo[10] public recentRounds; // 循环数组，最新在 index 0
+    RoundInfo[24] public recentRounds; // 循环数组，最新在 index 0
     uint256 private roundRingIndex;    // 当前写入位置（0-9）
     event PhaseChanged(uint8 indexed from, uint8 indexed to);
     event TicketsPurchased(address indexed player, uint256 count, uint256 amount, uint256 round);
@@ -183,6 +183,8 @@ contract GiwaLotteryV4 {
 
     function _drawAndDistribute() private {
         uint256 n = players.length;
+        // 即使无人参与也保存一条记录（totalRounds 正常累加）
+        _saveRoundRecord(n, address(0), address(0), address(0));
         if (n == 0) { _reset(); return; }
 
         // 使用 checkTimerExpiry 时锁定的区块 hash，无法事后篡改
@@ -216,23 +218,8 @@ contract GiwaLotteryV4 {
 
         if (fee > 0) _safeTransfer(payable(MANAGER), fee);
 
-        // 保存到最近10期循环数组
-        totalRounds++;
-        uint256 idx = roundRingIndex;
-        recentRounds[idx] = RoundInfo({
-            round: round,
-            prizePool: pool,
-            fee: fee,
-            distAmount: dist,
-            drawBlockNumber: drawBlockNumber,
-            drawBlockHash: drawBlockHash,
-            drawTxHash: lastDrawTxHash,
-            playerCount: n,
-            winner1: w1,
-            winner2: w2,
-            winner3: w3
-        });
-        roundRingIndex = (idx + 1) % 10;
+        // 覆盖空记录为真实数据
+        _saveRoundRecord(n, w1, w2, w3);
 
         emit WinnersPicked(w1,
             w1 == w2 && w1 == w3 ? dist : (dist * FIRST_PRIZE_BP) / BASIS_POINTS,
@@ -243,6 +230,25 @@ contract GiwaLotteryV4 {
         );
 
         _reset();
+    }
+
+    function _saveRoundRecord(uint256 _playerCount, address _w1, address _w2, address _w3) private {
+        totalRounds++;
+        uint256 idx = roundRingIndex;
+        recentRounds[idx] = RoundInfo({
+            round: round,
+            prizePool: address(this).balance,
+            fee: (address(this).balance * MANAGER_FEE_BP) / BASIS_POINTS,
+            distAmount: address(this).balance - (address(this).balance * MANAGER_FEE_BP) / BASIS_POINTS,
+            drawBlockNumber: drawBlockNumber,
+            drawBlockHash: drawBlockHash,
+            drawTxHash: lastDrawTxHash,
+            playerCount: _playerCount,
+            winner1: _w1,
+            winner2: _w2,
+            winner3: _w3
+        });
+        roundRingIndex = (idx + 1) % 24;
     }
 
     function _pickThree(bytes32 _seed, uint256 _n) private pure returns (uint256[3] memory) {
@@ -292,18 +298,18 @@ contract GiwaLotteryV4 {
     function getTotalTickets() external view returns (uint256) { return players.length; }
 
     function getRecentRounds() external view returns (
-        uint256[10] memory rounds,
-        uint256[10] memory pools,
-        uint256[10] memory fees,
-        uint256[10] memory playerCounts,
-        address[10] memory winners1,
-        address[10] memory winners2,
-        address[10] memory winners3,
+        uint256[24] memory rounds,
+        uint256[24] memory pools,
+        uint256[24] memory fees,
+        uint256[24] memory playerCounts,
+        address[24] memory winners1,
+        address[24] memory winners2,
+        address[24] memory winners3,
         uint256 total
     ) {
         total = totalRounds;
-        for (uint256 i = 0; i < 10; i++) {
-            uint256 slot = (roundRingIndex + i + 10) % 10;
+        for (uint256 i = 0; i < 24; i++) {
+            uint256 slot = (roundRingIndex + i + 24) % 24;
             RoundInfo storage r = recentRounds[slot];
             rounds[i] = r.round;
             pools[i] = r.prizePool;
