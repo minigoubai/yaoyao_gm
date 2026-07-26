@@ -236,16 +236,17 @@ async function loadDataRO() {
   if (!readOnlyContract) return;
   try {
     const cfg = await readOnlyContract.getConfig();
-    const [_price,,_dur,,_end,_phase,_tickets,_pool] = cfg;
+    const [_price, _max,,,_end,_phase,_tickets,_pool] = cfg;
     const phase = Number(_phase), tickets = Number(_tickets);
     const end = Number(_end), pool = Number(_pool);
     const round = Number(await readOnlyContract.round());
 
     document.getElementById('poolAmount').textContent = fmtEth(pool);
-    document.getElementById('ticketCount').textContent = tickets + ' 张票 / ' + cfg[1] + ' 人';
-    document.getElementById('roundBadge').textContent = 'Round ' + round;
-    document.getElementById('contractAddr').textContent = shortAddr(CONTRACT);
+    document.getElementById('ticketPriceDisplay').textContent = (Number(_price)/1e18).toFixed(4)+' ETH';
+    document.getElementById('maxPlayersDisplay').textContent = Number(_max);
     document.getElementById('hintPrice').textContent = (Number(_price)/1e18).toFixed(4);
+    document.getElementById('contractAddr').textContent = shortAddr(CONTRACT);
+    document.getElementById('roundBadge').textContent = 'Round ' + round;
     const nowSec = Math.floor(Date.now()/1000);
     document.getElementById('timerDisplay').textContent = end > 0 ? (nowSec >= end ? '已到期' : fmtTime(end)) : '∞';
 
@@ -269,10 +270,12 @@ async function loadDataRO() {
       banner.textContent = '🎰 开奖中';
       document.getElementById('buySection').style.display = 'none';
       document.getElementById('drawSection').style.display = 'block';
+      document.getElementById('winnerSection').style.display = 'none';
     }
 
     const players = await readOnlyContract.getPlayers();
     document.getElementById('playersCount').textContent = players.length;
+    document.getElementById('ticketCount').textContent = tickets + ' 张票 / ' + players.length + ' 人';
     const list = document.getElementById('playersList');
     list.innerHTML = '';
     const addrCount = {};
@@ -283,6 +286,25 @@ async function loadDataRO() {
       div.innerHTML = '<span class="addr">'+shortAddr(p)+'</span><span class="tickets">'+cnt+' 张</span>';
       list.appendChild(div);
     });
+
+    // Fetch and display winners if phase is DRAW
+    if (phase === PHASE_DRAW) {
+      try {
+        const winners = await readOnlyContract.getWinners();
+        if (winners && winners[0] && winners[0] !== '0x0000000000000000000000000000000000000000') {
+          document.getElementById('winnerSection').style.display = 'block';
+          document.getElementById('winner1Addr').textContent = shortAddr(winners[0]);
+          document.getElementById('winner1Amount').textContent = fmtEth(winners[1]);
+          document.getElementById('winner2Addr').textContent = shortAddr(winners[2]);
+          document.getElementById('winner2Amount').textContent = fmtEth(winners[3]);
+          document.getElementById('winner3Addr').textContent = shortAddr(winners[4]);
+          document.getElementById('winner3Amount').textContent = fmtEth(winners[5]);
+          banner.className = 'phase-banner phase-complete';
+          banner.textContent = '✅ 开奖完成';
+          document.getElementById('drawSection').style.display = 'none';
+        }
+      } catch(e) { console.error('getWinners error', e); }
+    }
   } catch(e) { console.error('loadDataRO error', e); }
 }
 
