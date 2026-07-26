@@ -1,0 +1,18 @@
+{
+  "name": "giwa-lottery",
+  "version": "1.0.0",
+  "description": "GIWA Lottery V2 — Multi-prize lottery DApp on GIWA Sepolia testnet",
+  "main": "deploy.js",
+  "scripts": {
+    "deploy": "node deploy.js",
+    "compile": "npx hardhat compile"
+  },
+  "dependencies": {
+    "ethers": "^5.7.2"
+  },
+  "devDependencies": {
+    "hardhat": "^2.29.0",
+    "@nomicfoundation/hardhat-toolbox": "^2.0.0",
+    "dotenv": "^16.0.0"
+  }
+}

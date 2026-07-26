@@ -129,7 +129,7 @@ a{color:#60a5fa;text-decoration:none}
 
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js?v=9"></script>
 <script>
 const CONTRACT = '0x4613Fb36Bc16F6Bf9bb27AeD9bfa9Cf7d3dEE959';
 const CHAIN_ID = 91342;
@@ -142,6 +142,7 @@ const ABI = [
   "function triggerDraw()",
   "function getConfig() view returns (uint256,uint256,uint256,uint256,uint256,uint8,uint256,uint256)",
   "function getPlayers() view returns (address[])",
+  "function getWinners() view returns (address,uint256,address,uint256,address,uint256)",
   "function getTicketCount(address) view returns (uint256)",
   "function getPrizePool() view returns (uint256)",
   "function getTotalTickets() view returns (uint256)",
@@ -241,7 +242,7 @@ async function loadDataRO() {
     const round = Number(await readOnlyContract.round());
 
     document.getElementById('poolAmount').textContent = fmtEth(pool);
-    document.getElementById('ticketCount').textContent = tickets + ' 张票 / 50 人';
+    document.getElementById('ticketCount').textContent = tickets + ' 张票 / ' + cfg[1] + ' 人';
     document.getElementById('roundBadge').textContent = 'Round ' + round;
     document.getElementById('contractAddr').textContent = shortAddr(CONTRACT);
     document.getElementById('hintPrice').textContent = (Number(_price)/1e18).toFixed(4);
@@ -394,6 +395,20 @@ async function triggerDraw() {
     await tx.wait();
     showToast('开奖完成！');
     await loadData();
+    // 读取 winners 并显示
+    const winners = await contract.getWinners();
+    if (winners && winners.length >= 3) {
+      document.getElementById('winnerSection').style.display = 'block';
+      document.getElementById('winner1Addr').textContent = shortAddr(winners[0]);
+      document.getElementById('winner1Amount').textContent = fmtEth(winners[1]);
+      document.getElementById('winner2Addr').textContent = shortAddr(winners[2]);
+      document.getElementById('winner2Amount').textContent = fmtEth(winners[3]);
+      document.getElementById('winner3Addr').textContent = shortAddr(winners[4]);
+      document.getElementById('winner3Amount').textContent = fmtEth(winners[5]);
+      document.getElementById('phaseBanner').className = 'phase-banner phase-complete';
+      document.getElementById('phaseBanner').textContent = '✅ 开奖完成';
+      document.getElementById('drawSection').style.display = 'none';
+    }
   } catch(e) {
     showToast('开奖失败: '+(e.code||'error'));
     btn.disabled = false; btn.textContent = '🎰 触发开奖';

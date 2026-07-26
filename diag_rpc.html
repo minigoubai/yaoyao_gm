@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head><title>RPC Diag</title></head>
+<body>
+<h2>Testing fetchChainData selectors...</h2>
+<pre id="out">Loading...</pre>
+<script type="module">
+const RPC = 'https://sepolia-rpc.giwa.io';
+const ADDR = '0xf5418b73CeA7E43F8485ECa0f795E62F8aCAb69c';
+
+const selectors = [
+  ['ticketPrice()','0x1209b1f6'],
+  ['maxPlayers()','0x4c2412a2'],
+  ['lotteryDuration()','0x2d97902f'],
+  ['startTime()','0x78e97925'],
+  ['endTime()','0x3197cbb6'],
+  ['currentPhase()','0x055ad42e'],
+  ['getTotalTickets()','0x06e8337f'],
+  ['getUniquePlayerCount()','0x91aae8f8'],
+  ['getPrizePool()','0x884bf67c'],
+  ['getPlayers()','0x8b5b9ccc'],
+  ['getCommitProgress()','0x5dbcb739'],
+  ['getWinners()','0xdf15c37e'],
+  ['round()','0x8b5b9ccc'],
+];
+
+let out = document.getElementById('out');
+
+for (const [name, sel] of selectors) {
+  try {
+    const res = await fetch(RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: ADDR, data: sel }, 'latest'] })
+    });
+    const json = await res.json();
+    if (json.error) {
+      out.textContent += `FAIL: ${name} => ${json.error.message}\n`;
+    } else {
+      out.textContent += `OK: ${name} => ${json.result?.slice(0,20)}...\n`;
+    }
+  } catch(e) {
+    out.textContent += `ERROR: ${name} => ${e.message}\n`;
+  }
+}
+
+// Now test Promise.all with all 11 safe calls
+out.textContent += '\n--- Promise.all batch test ---\n';
+try {
+  const promises = selectors.slice(0, 11).map(([name, sel], i) =>
+    fetch(RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: i+1, method: 'eth_call', params: [{ to: ADDR, data: sel }, 'latest'] })
+    }).then(r => r.json()).then(j => { if (j.error) throw new Error(name + ': ' + j.error.message); return j; })
+  );
+  await Promise.all(promises);
+  out.textContent += 'Promise.all SUCCESS\n';
+} catch(e) {
+  out.textContent += 'Promise.all FAIL: ' + e.message + '\n';
+}
+</script>
+</body>
+</html>

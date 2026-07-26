@@ -1,65 +1,106 @@
 #!/usr/bin/env node
 /**
  * GIWA Lottery V4 定时开奖脚本
- * 调用 checkTimerExpiry() 检查是否到达定时开奖时间
- * V4 极简流程: 购票 -> 时间到自动开奖 -> 发奖 -> 下一轮
+ * 使用原始 HTTPS RPC 调用，避免 ethers.js eth_call 问题
  */
 require('dotenv').config();
-const { ethers } = require('ethers');
-const fs = require('fs');
+const https = require('https');
 
-const RPC = 'https://sepolia-rpc.giwa.io';
-const ADDR = process.env.CONTRACT_ADDRESS || '0x45473C33C9EE4C94476Abf4D5B8C278405CeA48F';
+const RPC_HOST = 'sepolia-rpc.giwa.io';
+const ADDR = process.env.CONTRACT_ADDRESS || '0x4613Fb36Bc16F6Bf9bb27AeD9bfa9Cf7d3dEE959';
 const PK = process.env.DEPLOYER_PRIVATE_KEY;
 
-if (!PK) {
-  console.error('需要设置 DEPLOYER_PRIVATE_KEY');
-  process.exit(1);
+function rpc(method, params) {
+  return new Promise((resolve) => {
+    const data = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });
+    const req = https.request({ hostname: RPC_HOST, path: '/', method: 'POST', headers: { 'Content-Type': 'application/json' } }, res => {
+      let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d)));
+    });
+    req.write(data); req.end();
+  });
 }
 
+function packAddress(addr) {
+  return '0x000000000000000000000000' + addr.slice(2).toLowerCase();
+}
+
+async function ethCall(from, to, data) {
+  const r = await rpc('eth_call', [{ from, to, data }, 'latest']);
+  if (r.error) throw new Error(r.error.message);
+  return r.result;
+}
+
+async function sendTx(from, to, data, pk) {
+  const { ethers } = require('ethers');
+  const provider = new ethers.providers.JsonRpcProvider('https://' + RPC_HOST);
+  const wallet = new ethers.Wallet(pk, provider);
+  const tx = { to, data, chainId: 91342 };
+  const signed = await wallet.signTransaction(tx);
+  const r = await rpc('eth_sendRawTransaction', [signed]);
+  if (r.error) throw new Error(r.error.error?.message || r.error.message);
+  // Wait for receipt
+  let receipt = null;
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const r2 = await rpc('eth_getTransactionReceipt', [r.result]);
+    if (r2.result) { receipt = r2.result; break; }
+  }
+  return receipt;
+}
+
+const SELECTORS = {
+  currentPhase:   '0x055ad42e',
+  round:          '0x146ca531',
+  startTime:      '0x78e97925',
+  endTime:        '0x3197cbb6',
+  getPrizePool:   '0x884bf67c',
+  getTotalTickets:'0x06e8337f',
+  checkTimerExpiry:'0xf9fa4c52',
+  triggerDraw:    '0x825d2ab7',
+};
+
 async function main() {
-  const provider = new ethers.providers.JsonRpcProvider(RPC);
-  const wallet = new ethers.Wallet(PK, provider);
-  const artifact = JSON.parse(fs.readFileSync('./artifacts/contracts/GiwaLotteryV4.sol/GiwaLotteryV4.json', 'utf8'));
-  const c = new ethers.Contract(ADDR, artifact.abi, wallet);
-
-  const [,,, start, end, phase, totalTickets, pool] = await c.getConfig();
+  const fromAddr = '0x0000000000000000000000000000000000000001';
   const now = Math.floor(Date.now() / 1000);
-  const endBN = ethers.BigNumber.from(end);
-  const phaseNum = Number(phase);
-  const ticketsNum = Number(totalTickets);
 
-  console.log(`[${new Date().toISOString()}] 检查合约状态...`);
-  console.log(`  Phase: ${phaseNum} (0=购票,1=开奖), 总票数: ${totalTickets}`);
-  console.log(`  奖池: ${ethers.utils.formatEther(pool)} ETH`);
-  const endTime = endBN.toNumber();
-  console.log(`  结束时间: ${endTime ? new Date(endTime*1000).toISOString() : '无'}`);
+  console.log(`[${new Date().toISOString()}] 检查合约 ${ADDR}...`);
 
-  // V4: 阶段0(购票)时检查定时; 阶段1(开奖)时任何人可触发triggerDraw
-  if (phaseNum === 0) {
-    if (endBN.gt(0) && now >= endTime) {
-      console.log('  -> 定时到期，调用 checkTimerExpiry!');
-      try {
-        const tx = await c.checkTimerExpiry({ gasLimit: 100000 });
-        await tx.wait();
-        console.log('  -> checkTimerExpiry 成功，阶段已切换到开奖');
-      } catch(e) {
-        console.log('  -> checkTimerExpiry 失败:', e.message.split('\n')[0]);
+  try {
+    const [phaseHex, roundHex, startHex, endHex, poolHex, totalHex] = await Promise.all([
+      ethCall(fromAddr, ADDR, SELECTORS.currentPhase),
+      ethCall(fromAddr, ADDR, SELECTORS.round),
+      ethCall(fromAddr, ADDR, SELECTORS.startTime),
+      ethCall(fromAddr, ADDR, SELECTORS.endTime),
+      ethCall(fromAddr, ADDR, SELECTORS.getPrizePool),
+      ethCall(fromAddr, ADDR, SELECTORS.getTotalTickets),
+    ]);
+
+    const phase = parseInt(phaseHex);
+    const round = parseInt(roundHex);
+    const start = parseInt(startHex);
+    const end = parseInt(endHex);
+    const pool = parseInt(poolHex) / 1e18;
+    const total = parseInt(totalHex);
+
+    console.log(`  Round ${round}, Phase ${phase}, 票数 ${total}, 奖池 ${pool} ETH`);
+    console.log(`  结束时间: ${end ? new Date(end * 1000).toISOString() : '无'} (${end - now}s 后)`);
+
+    if (phase === 0) {
+      if (end > 0 && now >= end) {
+        console.log('  -> 定时到期，调用 checkTimerExpiry!');
+        const receipt = await sendTx(null, ADDR, SELECTORS.checkTimerExpiry, PK);
+        console.log('  -> 成功! TX:', receipt.transactionHash, 'status:', receipt.status);
+      } else {
+        console.log(`  -> 购票中，距开奖还有 ${Math.floor((end - now) / 60)} 分钟`);
       }
-    } else {
-      const remaining = endTime - now;
-      console.log(`  -> 未触发 (购票中，距离开奖还有 ${Math.floor(remaining/60)} 分钟)`);
+    } else if (phase === 1) {
+      console.log('  -> 开奖阶段，调用 triggerDraw!');
+      const receipt = await sendTx(null, ADDR, SELECTORS.triggerDraw, PK);
+      console.log('  -> 成功! TX:', receipt.transactionHash, 'status:', receipt.status);
     }
-  } else if (phaseNum === 1) {
-    console.log('  -> 阶段1(开奖中)，触发 triggerDraw!');
-    try {
-      const tx = await c.triggerDraw({ gasLimit: 500000 });
-      await tx.wait();
-      console.log('  -> triggerDraw 成功!');
-    } catch(e) {
-      console.log('  -> triggerDraw 失败:', e.message.split('\n')[0]);
-    }
+  } catch (e) {
+    console.log('  -> 错误:', e.message);
   }
 }
 
-main().catch(e => { console.error('错误:', e.message); process.exit(1); });
+main().catch(e => { console.error('Fatal:', e.message); process.exit(1); });
