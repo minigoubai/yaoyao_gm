@@ -108,17 +108,22 @@ contract GiwaLotteryV4 {
     function checkTimerExpiry() external {
         if (endTime == 0) return;
         if (block.timestamp < endTime) return;
+        if (currentPhase != PHASE_ENTRY) return;
+
         emit TimerExpired(endTime);
 
-        if (currentPhase == PHASE_ENTRY) {
-            if (players.length > 0) {
-                drawBlockHash = blockhash(block.number); // 锁定当前区块 hash 作为随机种子
-                drawBlockNumber = block.number;
-                _toDraw();
-            } else {
-                endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
-            }
+        if (players.length == 0) {
+            // 无人参与：仅延长计时器，重置追踪码，继续下一轮
+            endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
+            drawBlockHash = 0x0;
+            drawBlockNumber = 0;
+            return;
         }
+
+        // 锁定区块 hash，直接完成开奖（一次性完成，不留中间状态）
+        drawBlockHash = blockhash(block.number);
+        drawBlockNumber = block.number;
+        _drawAndDistribute();
     }
 
     function triggerDraw() external onlyManager atPhase(PHASE_DRAW) {
