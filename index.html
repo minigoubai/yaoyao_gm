@@ -26,7 +26,7 @@ header button:hover{background:#1d4ed8}
 .prize-pool .amount{font-size:24px;font-weight:700;color:#4ade80}
 .prize-pool .label{font-size:12px;color:#64748b}
 .input-row{display:flex;gap:8px;margin-bottom:12px}
-input{p flex:1;background:#0f1520;border:1px solid #2d3748;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:15px}
+input{flex:1;background:#0f1520;border:1px solid #2d3748;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:15px}
 input:focus{outline:none;border-color:#60a5fa}
 button.btn-primary{width:100%;background:#2563eb;color:#fff;border:none;padding:14px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer}
 button.btn-primary:hover{background:#1d4ed8}
@@ -131,7 +131,7 @@ a{color:#60a5fa;text-decoration:none}
 
 <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
 <script>
-const CONTRACT = '0x86C027ec9913Ea5722757dEF69a8162543b77617';
+const CONTRACT = '0xaf8EB7a4e7d489B742E65b4B3C31ec53125770c4';
 const CHAIN_ID = 91342;
 const RPC = 'https://sepolia-rpc.giwa.io';
 
@@ -158,6 +158,7 @@ const ABI = [
 ];
 
 let provider, signer, contract, account;
+let readOnlyContract;
 const PHASE_ENTRY = 0, PHASE_DRAW = 1;
 
 function shortAddr(a) { return a ? a.slice(0,6)+'...'+a.slice(-4) : '-'; }
@@ -189,6 +190,7 @@ async function connectWallet() {
     document.getElementById('walletBtn').textContent = shortAddr(account);
     await switchToGiwa();
     contract = new ethers.Contract(CONTRACT, ABI, signer);
+    setupEventListeners();
     await loadData();
     provider.on('block', loadData);
   } catch(e) { showToast('连接失败: '+(e.message||'')); }
@@ -214,7 +216,59 @@ async function switchToGiwa() {
   document.getElementById('switchBtn').style.display = account ? 'inline-block' : 'none';
 }
 
+function initReadOnly() {
+  const ro = new ethers.providers.JsonRpcProvider(RPC);
+  readOnlyContract = new ethers.Contract(CONTRACT, ABI, ro);
+  loadDataRO();
+  setInterval(loadDataRO, 15000);
+}
+
+async function loadDataRO() {
+  if (!readOnlyContract) return;
+  try {
+    const cfg = await readOnlyContract.getConfig();
+    const [_price,,_dur,,_end,_phase,_tickets,_pool] = cfg;
+    const phase = Number(_phase), tickets = Number(_tickets);
+    const end = Number(_end), pool = Number(_pool);
+    const round = Number(await readOnlyContract.round());
+
+    document.getElementById('poolAmount').textContent = fmtEth(pool);
+    document.getElementById('ticketCount').textContent = tickets + ' 张票 / 50 人';
+    document.getElementById('roundBadge').textContent = 'Round ' + round;
+    document.getElementById('contractAddr').textContent = shortAddr(CONTRACT);
+    document.getElementById('hintPrice').textContent = (Number(_price)/1e18).toFixed(4);
+    document.getElementById('timerDisplay').textContent = end > 0 ? fmtTime(end) : '∞';
+
+    const banner = document.getElementById('phaseBanner');
+    if (phase === PHASE_ENTRY) {
+      banner.className = 'phase-banner phase-entry';
+      banner.textContent = '🛒 购票中';
+      document.getElementById('buySection').style.display = 'block';
+      document.getElementById('drawSection').style.display = 'none';
+    } else if (phase === PHASE_DRAW) {
+      banner.className = 'phase-banner phase-draw';
+      banner.textContent = '🎰 开奖中';
+      document.getElementById('buySection').style.display = 'none';
+      document.getElementById('drawSection').style.display = 'block';
+    }
+
+    const players = await readOnlyContract.getPlayers();
+    document.getElementById('playersCount').textContent = players.length;
+    const list = document.getElementById('playersList');
+    list.innerHTML = '';
+    const addrCount = {};
+    players.forEach(p => addrCount[p] = (addrCount[p]||0)+1);
+    Object.entries(addrCount).forEach(([p, cnt]) => {
+      const div = document.createElement('div');
+      div.className = 'player-item';
+      div.innerHTML = '<span class="addr">'+shortAddr(p)+'</span><span class="tickets">'+cnt+' 张</span>';
+      list.appendChild(div);
+    });
+  } catch(e) { console.error('loadDataRO error', e); }
+}
+
 async function loadData() {
+  if (!contract) return;
   try {
     const cfg = await contract.getConfig();
     const [_price, _max, _dur, _start, _end, _phase, _tickets, _pool] = cfg;
@@ -314,8 +368,10 @@ async function triggerDraw() {
   }
 }
 
-// Listen for winners
-if (contract) {
+function setupEventListeners() {
+  if (!contract) return;
+  contract.removeAllListeners('WinnersPicked');
+  contract.removeAllListeners('LotteryReset');
   contract.on('WinnersPicked', (w1,p1,w2,p2,w3,p3) => {
     document.getElementById('winnerSection').style.display = 'block';
     document.getElementById('winner1Addr').textContent = shortAddr(w1);
@@ -337,12 +393,15 @@ if (contract) {
 }
 
 // ticket count input update
-document.getElementById('ticketCountInput').addEventListener('input', async () => {
+document.getElementById('ticketCountInput').addEventListener('input', () => {
   try {
-    const price = await contract.ticketPrice();
+    const price = readOnlyContract ? null : null; // price only needed for display
     const cnt = parseInt(document.getElementById('ticketCountInput').value)||1;
     document.getElementById('hintCount').textContent = cnt;
-    document.getElementById('hintTotal').textContent = ((Number(price)/1e18)*cnt).toFixed(4);
+    // Get price from DOM
+    const priceText = document.getElementById('hintPrice').textContent;
+    const priceVal = parseFloat(priceText) || 0.001;
+    document.getElementById('hintTotal').textContent = (priceVal * cnt).toFixed(4);
   } catch(e) {}
 });
 
@@ -363,6 +422,8 @@ window.addEventListener('load', () => {
   if (window.ethereum) {
     connectWallet();
   }
+  // 无钱包模式：通过 RPC 读取数据
+  initReadOnly();
 });
 </script>
 </body>
