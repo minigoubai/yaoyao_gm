@@ -34,6 +34,8 @@ contract GiwaLotteryV4 {
 
     // 确定性随机数：在 checkTimerExpiry 时锁定开奖区块 hash，无法事后篡改
     bytes32 public drawBlockHash;
+    uint256 public drawBlockNumber;   // 开奖区块高度（追踪码 Part1）
+    bytes32 public lastDrawTxHash;    // 开奖交易hash（追踪码 Part2）
 
     address[] public players;
     mapping(address => uint256) public ticketCount;
@@ -44,6 +46,10 @@ contract GiwaLotteryV4 {
     uint256 public lastWinnerIdx1;
     uint256 public lastWinnerIdx2;
     uint256 public lastWinnerIdx3;
+    uint256   public lastDrawBlockNumber;
+    bytes32   public lastDrawBlockHash;
+    uint256   public lastFee;         // 管理费金额
+    uint256   public lastDistAmount;  // 分发总额（去掉管理费）
 
     event PhaseChanged(uint8 indexed from, uint8 indexed to);
     event TicketsPurchased(address indexed player, uint256 count, uint256 amount, uint256 round);
@@ -101,6 +107,7 @@ contract GiwaLotteryV4 {
         if (currentPhase == PHASE_ENTRY) {
             if (players.length > 0) {
                 drawBlockHash = blockhash(block.number); // 锁定当前区块 hash 作为随机种子
+                drawBlockNumber = block.number;
                 _toDraw();
             } else {
                 endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
@@ -110,6 +117,12 @@ contract GiwaLotteryV4 {
 
     function triggerDraw() external onlyManager atPhase(PHASE_DRAW) {
         _drawAndDistribute();
+    }
+
+    // 记录开奖交易hash（在 triggerDraw 交易确认后由 manager 调用）
+    function recordDrawTx(bytes32 _txHash) external onlyManager {
+        require(_txHash != 0x0, "Invalid tx hash");
+        lastDrawTxHash = _txHash;
     }
 
     function configure(uint256 _price, uint256 _max, uint256 _dur) external onlyManager {
@@ -197,7 +210,11 @@ contract GiwaLotteryV4 {
 
         if (fee > 0) _safeTransfer(payable(MANAGER), fee);
 
-        // 保存历史开奖记录（用索引，_reset 时 players 还没被清空）
+        lastFee = fee;
+        lastDistAmount = dist;
+        lastDrawBlockNumber = drawBlockNumber;
+        lastDrawBlockHash = drawBlockHash;
+        // lastDrawTxHash 在 triggerDraw 交易回执中获取，触发后手动写入
         lastRound = round;
         lastPrizePool = pool;
         lastWinnerIdx1 = sel[0];
@@ -232,7 +249,9 @@ contract GiwaLotteryV4 {
         currentPhase = PHASE_ENTRY;
         startTime = block.timestamp;
         endTime = lotteryDuration > 0 ? block.timestamp + lotteryDuration : block.timestamp + 3600;
-        drawBlockHash = 0x0; // 重置，为下一轮做准备
+        drawBlockHash = 0x0;
+        drawBlockNumber = 0;
+        lastDrawTxHash = 0x0; // 重置，为下一轮做准备
         emit LotteryReset(round);
     }
 
@@ -258,9 +277,20 @@ contract GiwaLotteryV4 {
     function getPrizePool() external view returns (uint256) { return address(this).balance; }
     function getPlayers() external view returns (address[] memory) { return players; }
     function getTotalTickets() external view returns (uint256) { return players.length; }
-    function getLastWinners() external view returns (uint256, uint256, uint256, uint256, uint256, uint256) {
-        // 返回上一轮的中奖者索引和奖池金额（前端从 players[] 解析地址）
-        return (lastRound, lastPrizePool, lastWinnerIdx1, lastWinnerIdx2, lastWinnerIdx3, players.length);
+    function getLastWinners() external view returns (
+        uint256 _round, uint256 _prizePool, uint256 _fee, uint256 _distAmount,
+        uint256 _drawBlockNumber, bytes32 _drawBlockHash, bytes32 _drawTxHash,
+        uint256 _idx1, uint256 _idx2, uint256 _idx3, uint256 _totalPlayers
+    ) {
+        return (
+            lastRound, lastPrizePool, lastFee, lastDistAmount,
+            lastDrawBlockNumber, lastDrawBlockHash, lastDrawTxHash,
+            lastWinnerIdx1, lastWinnerIdx2, lastWinnerIdx3, players.length
+        );
+    }
+
+    function getPrizeDistribution() external pure returns (uint256 first, uint256 second, uint256 third, uint256 managerFee) {
+        return (FIRST_PRIZE_BP, SECOND_PRIZE_BP, THIRD_PRIZE_BP, MANAGER_FEE_BP);
     }
 
     function getConfig() external view returns (
