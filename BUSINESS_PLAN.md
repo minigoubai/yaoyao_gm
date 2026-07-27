@@ -269,4 +269,27 @@ GIWA Lottery 是一个**技术可行、商业清晰、竞争差异化强**的去
 
 ---
 
+## 关键链接
+
+| 资源 | 链接 |
+|------|------|
+| **DApp 前端** | https://minigoubai.github.io/yaoyao_gm/ |
+| **合约地址** | https://sepolia-explorer.giwa.io/address/0x18a4c3F5d4f1eb06b41B37D7855A158d21c73025 |
+| **区块浏览器** | https://sepolia-explorer.giwa.io/ |
+| **GitHub 仓库** | https://github.com/minigoubai/yaoyao_gm |
+
+## 文档目录
+
+| 文档 | 内容 |
+|------|------|
+| [README.md](README.md) | 产品概述、快速开始 |
+| [docs/TECHNICAL.md](docs/TECHNICAL.md) | 技术架构、合约设计、安全模型 |
+| [docs/API.md](docs/API.md) | 合约 ABI、前端 API、事件列表 |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 部署指南、网络配置、Cron 设置 |
+| [docs/FAQ.md](docs/FAQ.md) | 常见问题 |
+| [docs/architecture.svg](docs/architecture.svg) | 系统架构图（SVG） |
+| [BUSINESS_PLAN.md](BUSINESS_PLAN.md) | 本商业计划书 |
+
+---
+
 *本商业计划书基于 2026-07-27 产品状态撰写，随着项目进展定期更新。*

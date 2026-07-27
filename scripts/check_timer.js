@@ -1,70 +1,82 @@
 #!/usr/bin/env node
 /**
- * GIWA Lottery 定时开奖脚本
- * 调用 checkTimerExpiry() 检查是否到达定时开奖时间
- * 同时检查是否满足50人阈值
+ * GIWA Lottery V4 定时开奖脚本
+ * 调用 checkTimerExpiry() 检查是否到达定时开奖时间（一次性完成开奖，无需两步）
  */
 require('dotenv').config();
 const { ethers } = require('ethers');
 const fs = require('fs');
 
 const RPC = 'https://sepolia-rpc.giwa.io';
-const ADDR = process.env.CONTRACT_ADDRESS || '0x67188cd91165aBb197c5a02574c20a40F95Cd93B';
+const ADDR = process.env.CONTRACT_ADDRESS;
 const PK = process.env.DEPLOYER_PRIVATE_KEY;
 
 if (!PK) {
   console.error('需要设置 DEPLOYER_PRIVATE_KEY');
   process.exit(1);
 }
+if (!ADDR) {
+  console.error('需要设置 CONTRACT_ADDRESS');
+  process.exit(1);
+}
 
 async function main() {
   const provider = new ethers.providers.JsonRpcProvider(RPC);
   const wallet = new ethers.Wallet(PK, provider);
-  const artifact = JSON.parse(fs.readFileSync('./artifacts/contracts/GiwaLotteryV2.sol/GiwaLotteryV2.json', 'utf8'));
+  const artifact = JSON.parse(fs.readFileSync('./artifacts/contracts/GiwaLotteryV4.sol/GiwaLotteryV4.json', 'utf8'));
   const c = new ethers.Contract(ADDR, artifact.abi, wallet);
 
-  const [,,, start, end, phase, totalTickets, uniquePlayers, pool] = await c.getConfig();
+  // V4 视图函数
+  const [ticketPrice, maxPlayers, lotteryDuration, currentPhase, totalRounds] = await Promise.all([
+    c.ticketPrice(),
+    c.maxPlayers(),
+    c.lotteryDuration(),
+    c.currentPhase(),
+    c.totalRounds(),
+  ]);
+  const endTime = await c.endTime();
+  const pool = await provider.getBalance(ADDR);
   const now = Math.floor(Date.now() / 1000);
-  const endBN = ethers.BigNumber.from(end);
-  const phaseNum = Number(phase);
-  const ticketsBN = ethers.BigNumber.from(totalTickets);
-  const uniqueBN = ethers.BigNumber.from(uniquePlayers);
 
-  console.log(`[${new Date().toISOString()}] 检查合约状态...`);
-  console.log(`  Phase: ${phaseNum}, 总票数: ${totalTickets}, 独立玩家: ${uniquePlayers}`);
-  console.log(`  奖池: ${ethers.utils.formatEther(pool)} ETH`);
-  console.log(`  结束时间: ${endBN.toNumber() ? new Date(endBN.toNumber()*1000).toISOString() : '无'}`);
+  const phaseNum = Number(currentPhase);
+  const endBN = ethers.BigNumber.from(endTime);
 
-  // 条件1: 定时到期
+  console.log(`[${new Date().toISOString()}] Phase: ${phaseNum}, 奖池: ${ethers.utils.formatEther(pool)} ETH`);
+  console.log(`  endTime: ${endBN.toNumber() ? new Date(endBN.toNumber()*1000).toISOString() : '无'}`);
+
+  // 仅在 PHASE_ENTRY(0) 且时间已到时触发
   const timerExpired = phaseNum === 0 && endBN.gt(0) && now >= endBN.toNumber();
 
-  // 条件2: 50人阈值
-  const maxPlayers = await c.maxPlayers();
-  const maxBN = ethers.BigNumber.from(maxPlayers);
-  const thresholdReached = phaseNum === 0 && maxBN.gt(0) && uniqueBN.gte(maxBN);
-
   if (timerExpired) {
-    console.log('  → 定时到期，触发开奖!');
+    console.log('  -> 定时到期，触发 checkTimerExpiry (一次性开奖)...');
     try {
-      const tx = await c.checkTimerExpiry({ gasLimit: 50000 });
-      await tx.wait();
-      console.log('  → checkTimerExpiry 成功');
+      // estimateGas 先估算，避免 intrinsic gas too low
+      const est = await c.estimateGas.checkTimerExpiry();
+      const gasLimit = est.mul(2).toNumber(); // 2x 估算值
+      console.log(`  -> 估算 gas: ${est.toNumber()}, 设置上限: ${gasLimit}`);
+      const tx = await c.checkTimerExpiry({ gasLimit });
+      const receipt = await tx.wait();
+      console.log(`  -> 成功! TX: ${receipt.transactionHash}`);
     } catch (e) {
-      console.log('  → checkTimerExpiry 失败:', e.message.split('\n')[0]);
-    }
-  } else if (thresholdReached) {
-    console.log('  → 50人阈值触发!');
-    try {
-      const tx = await c.forceStartCommit({ gasLimit: 50000 });
-      await tx.wait();
-      console.log('  → forceStartCommit 成功');
-    } catch (e) {
-      console.log('  → forceStartCommit 失败:', e.message.split('\n')[0]);
+      // 提取 revert 原因
+      let reason = e.message;
+      if (e.data) reason = e.data;
+      else if (e.error && e.error.body) {
+        try {
+          const body = JSON.parse(e.error.body);
+          reason = body.error.message || reason;
+        } catch(_) {}
+      }
+      console.log('  -> checkTimerExpiry 失败:', reason.split('\n')[0]);
+      process.exit(0); // 不重试，静默退出
     }
   } else {
-    const remaining = end.toNumber() - now;
-    console.log(`  -> 未触发 (距离开奖还有 ${Math.floor(remaining/60)} 分钟)`);
+    const remaining = endBN.toNumber() - now;
+    console.log(`  -> 未触发 (Phase=${phaseNum}, 距开奖还有 ${Math.max(0, Math.floor(remaining/60))} 分钟)`);
   }
 }
 
-main().catch(e => { console.error('错误:', e.message); process.exit(1); });
+main().catch(e => {
+  console.error('脚本错误:', e.message.split('\n')[0]);
+  process.exit(0); // 不抛异常，避免 cron 重复报警
+});
